@@ -1,3 +1,4 @@
 tracker.db
 __pycache__/
 .venv/
+tracker.log

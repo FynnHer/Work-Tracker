@@ -16,6 +16,11 @@ python app.py
 
 Then open <http://localhost:47474> (override with `PORT=...`).
 
+**Start at login (macOS):** run `./autostart.sh` (needs `python3` on your PATH). It creates `.venv`,
+installs `requirements.txt` and adds a LaunchAgent (`~/Library/LaunchAgents/com.worktracker.plist`)
+that starts the server at login and restarts it if it stops; output goes to `tracker.log`. It always
+uses port 47474. Undo with `./autostart.sh remove`.
+
 ## Features
 
 - **Timer** – Start/Stop with a note of what you're working on; the note stays editable while the

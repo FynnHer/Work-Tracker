@@ -2,6 +2,7 @@
 
 Run:  python app.py   then open http://localhost:47474
 """
+import logging
 import os
 import sqlite3
 from datetime import date, datetime, time, timedelta
@@ -16,6 +17,7 @@ WEEKLY_TARGET = 40 * 3600     # seconds per week
 WORKDAYS = {0, 1, 2, 3, 4}    # Monday..Friday
 
 app = Flask(__name__, static_folder="static", static_url_path="")
+logging.getLogger("werkzeug").setLevel(logging.WARNING)  # no per-request access log
 
 
 # ---------------------------------------------------------------- database
