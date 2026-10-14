@@ -26,3 +26,15 @@ Then open <http://localhost:47474> (override with `PORT=...`).
 - **Day view** – list, add, edit or delete sessions (e.g. if you forgot to start/stop the timer).
 
 Targets are set at the top of `app.py` (`DAILY_TARGET`, `WEEKLY_TARGET`, `WORKDAYS`).
+
+## Menu bar (macOS)
+
+`menubar/worktracker.30s.py` is a [SwiftBar](https://swiftbar.app) plugin: running time in the
+menu bar, Start / Start with note… / Stop, and today's stats (refreshes every 30s).
+
+Requirements: SwiftBar (`brew install --cask swiftbar`) and macOS's `/usr/bin/python3`, which comes with
+the Xcode Command Line Tools (`xcode-select --install`). The tracker server must be running.
+
+Setup: start SwiftBar, choose the `menubar` folder as plugin folder, and turn on *Launch at Login* in
+SwiftBar's preferences. The plugin talks to `http://localhost:47474`; edit `URL` at the top of the
+script if you run the server on another port.
