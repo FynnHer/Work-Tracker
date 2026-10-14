@@ -24,5 +24,12 @@ Then open <http://localhost:47474> (override with `PORT=...`).
 - **Overtime balance** – total worked vs. 8h per workday (Mon–Fri) for all days before today.
 - **Activity heatmap** – last 12 months or any year; darker = more hours. Click a day to see it.
 - **Day view** – list, add, edit or delete sessions (e.g. if you forgot to start/stop the timer).
+- **Come-back reminder (macOS)** – when you log in or come back (after sleep, lock or the display
+  turning off, e.g. lid closed) and no timer is running, you get a notification. Click
+  **Enable reminders** in the tracker once: the open tab then sends the notification and clicking
+  it jumps to that tab. With no tab open you get a plain macOS notification instead. A running timer
+  just keeps going. No extra installs, but macOS must allow notifications for your browser
+  (System Settings → Notifications). Decisions are logged to stderr (`tracker.log` with autostart);
+  disable with `WAKE_PROMPT=0`.
 
 Targets are set at the top of `app.py` (`DAILY_TARGET`, `WEEKLY_TARGET`, `WORKDAYS`).

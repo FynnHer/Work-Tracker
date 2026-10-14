@@ -58,8 +58,17 @@ function level(sec) {
 
 // ------------------------------------------------------------ status + timer
 
+const canNotify = () => "Notification" in window && Notification.permission === "granted";
+let seenReminder = null;
+
 async function loadStatus() {
-  status = await api("GET", "/api/status");
+  status = await api("GET", "/api/status" + (canNotify() ? "?notify=1" : ""));
+  // The server updates `last_reminder` when you come back with no timer running.
+  if (seenReminder !== null && status.last_reminder !== seenReminder && canNotify()) {
+    const n = new Notification("Work Tracker – Working?", { body: "No timer running — click to start.", tag: "work-tracker" });
+    n.onclick = () => { window.focus(); $("note").focus(); n.close(); };
+  }
+  seenReminder = status.last_reminder;
   fetchedAt = performance.now();
   renderStatus();
   renderWeek();
@@ -345,6 +354,21 @@ $("session-form").addEventListener("submit", async (e) => {
   }
 });
 
+// Catch up immediately when the tab becomes visible again (renders are skipped while hidden).
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && status) { renderStatus(); renderWeek(); }
+});
+
+// ------------------------------------------------------------ reminders (browser notifications)
+
+const notifyBtn = $("notify-btn");
+notifyBtn.hidden = !("Notification" in window) || Notification.permission !== "default";
+notifyBtn.addEventListener("click", async () => {
+  await Notification.requestPermission();
+  notifyBtn.hidden = Notification.permission !== "default";
+  await loadStatus();
+});
+
 // ------------------------------------------------------------ boot
 
 async function refreshAll() {
@@ -360,9 +384,9 @@ async function init() {
   resetForm();
   await refreshAll();
 
-  // Tick the live numbers every second; resync with the server every minute.
+  // Tick the live numbers every second; resync with the server every 10s (also picks up reminders).
   setInterval(() => {
-    if (status && status.running) { renderStatus(); renderWeek(); }
+    if (status && status.running && !document.hidden) { renderStatus(); renderWeek(); }
   }, 1000);
   setInterval(async () => {
     const prevToday = status.today;
@@ -371,7 +395,7 @@ async function init() {
       $("today-label").textContent = fmtLongDate(parseYmd(status.today));
       await refreshAll();
     }
-  }, 60000);
+  }, 10000);
 }
 
 init().catch((e) => {
