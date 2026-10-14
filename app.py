@@ -16,8 +16,8 @@ from flask import Flask, g, jsonify, request
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("TRACKER_DB", os.path.join(BASE_DIR, "tracker.db"))
 
+# Default work goal; it applies to all days before the first change made in Settings → Work goals.
 DAILY_TARGET = 8 * 3600       # seconds per workday
-WEEKLY_TARGET = 40 * 3600     # seconds per week
 WORKDAYS = {0, 1, 2, 3, 4}    # Monday..Friday
 
 app = Flask(__name__, static_folder="static", static_url_path="")
@@ -56,6 +56,12 @@ def init_db():
                 start_time  TEXT NOT NULL,          -- last keyboard/trackpad input before leaving
                 end_time    TEXT NOT NULL,          -- when you were back
                 reason      TEXT NOT NULL           -- sleep | lock | display-off
+            );
+            -- Work goal changes: from valid_from on, daily_seconds on each of the workdays.
+            CREATE TABLE IF NOT EXISTS targets (
+                valid_from    TEXT PRIMARY KEY,     -- YYYY-MM-DD
+                daily_seconds INTEGER NOT NULL,
+                workdays      TEXT NOT NULL         -- weekday digits, Monday = 0, e.g. "01234"
             );
             """
         )
@@ -114,13 +120,23 @@ def daily_totals(first: date, last: date) -> dict:
     return totals
 
 
-def expected_seconds(first: date, last: date) -> int:
-    """Target seconds for all workdays in [first, last]."""
-    if last < first:
-        return 0
-    days = (last - first).days + 1
-    workdays = sum(1 for i in range(days) if (first + timedelta(days=i)).weekday() in WORKDAYS)
-    return workdays * DAILY_TARGET
+def goal_table() -> list:
+    """[(valid_from, daily_seconds, workdays)], oldest first; the defaults apply before any change."""
+    rows = get_db().execute("SELECT * FROM targets ORDER BY valid_from").fetchall()
+    return [(date.min, DAILY_TARGET, WORKDAYS)] + [
+        (parse_day(r["valid_from"]), r["daily_seconds"], {int(c) for c in r["workdays"]}) for r in rows
+    ]
+
+
+def day_target(day: date, table: list) -> int:
+    """Target seconds for one day under the goal that was valid on that day."""
+    _, daily, workdays = next(g for g in reversed(table) if g[0] <= day)
+    return daily if day.weekday() in workdays else 0
+
+
+def expected_seconds(first: date, last: date, table: list) -> int:
+    """Target seconds for all days in [first, last]."""
+    return sum(day_target(first + timedelta(days=i), table) for i in range((last - first).days + 1))
 
 
 def running_session():
@@ -154,7 +170,10 @@ def status():
     week = daily_totals(monday, monday + timedelta(days=6))
     today_s = week.get(today.isoformat(), 0)
     week_s = sum(week.values())
-    today_target = DAILY_TARGET if today.weekday() in WORKDAYS else 0
+    goals = goal_table()
+    today_target = day_target(today, goals)
+    week_targets = [day_target(monday + timedelta(days=i), goals) for i in range(7)]
+    weekly_target = sum(week_targets)
 
     # Overtime balance: everything worked before today vs. target before today.
     first_row = db.execute("SELECT MIN(start_time) FROM sessions").fetchone()[0]
@@ -166,25 +185,25 @@ def status():
         yesterday = today - timedelta(days=1)
         if first_day <= yesterday:
             worked = sum(daily_totals(first_day, yesterday).values())
-            balance = worked - expected_seconds(first_day, yesterday)
+            balance = worked - expected_seconds(first_day, yesterday, goals)
 
     run = running_session()
     return jsonify({
         "now": fmt(datetime.now()),
         "today": today.isoformat(),
         "daily_target": today_target,
-        "weekly_target": WEEKLY_TARGET,
+        "weekly_target": weekly_target,
         "today_seconds": today_s,
         "week_seconds": week_s,
         "today_remaining": max(0, today_target - today_s),
-        "week_remaining": max(0, WEEKLY_TARGET - week_s),
+        "week_remaining": max(0, weekly_target - week_s),
         "balance_seconds": balance,
         "first_year": first_year,
         "week_days": [
             {
                 "date": (monday + timedelta(days=i)).isoformat(),
                 "seconds": week.get((monday + timedelta(days=i)).isoformat(), 0),
-                "target": DAILY_TARGET if i in WORKDAYS else 0,
+                "target": week_targets[i],
             }
             for i in range(7)
         ],
@@ -193,6 +212,55 @@ def status():
         "reminder_kind": reminder_kind,
         "watcher": watcher_running,
     })
+
+
+@app.get("/api/goals")
+def get_goals():
+    """All goal periods: the defaults (valid_from null) and every change, oldest first."""
+    return jsonify([
+        {"valid_from": None if start == date.min else start.isoformat(), "daily_seconds": daily,
+         "workdays": sorted(workdays)}
+        for start, daily, workdays in goal_table()
+    ])
+
+
+@app.put("/api/goals")
+def set_goal():
+    """New goal from valid_from (today or later) on. Past days keep the goal they had."""
+    data = request.get_json(silent=True) or {}
+    try:
+        start = parse_day(data["valid_from"])
+        workdays = sorted({int(d) for d in data["workdays"]})
+        weekly = float(data["weekly_hours"])
+    except (KeyError, TypeError, ValueError):
+        return bad_request("valid_from (YYYY-MM-DD), weekly_hours and workdays (0 = Monday) are required.")
+    if start < date.today():
+        return bad_request("Goals can only change from today on — past days keep the goal they had.")
+    if not workdays or not all(0 <= d <= 6 for d in workdays):
+        return bad_request("Pick at least one workday.")
+    daily = round(weekly * 3600 / len(workdays))
+    if not 0 < daily <= 24 * 3600:
+        return bad_request("That's not a possible number of hours.")
+    db = get_db()
+    db.execute("INSERT OR REPLACE INTO targets VALUES (?, ?, ?)",
+               (start.isoformat(), daily, "".join(map(str, workdays))))
+    db.commit()
+    return get_goals()
+
+
+@app.delete("/api/goals/<valid_from>")
+def delete_goal(valid_from):
+    """Cancel a goal change that hasn't started yet."""
+    try:
+        start = parse_day(valid_from)
+    except ValueError:
+        return bad_request("Use YYYY-MM-DD.")
+    if start <= date.today():
+        return bad_request("Only changes that start in the future can be cancelled.")
+    db = get_db()
+    db.execute("DELETE FROM targets WHERE valid_from = ?", (valid_from,))
+    db.commit()
+    return get_goals()
 
 
 @app.post("/api/start")

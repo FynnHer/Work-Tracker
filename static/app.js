@@ -125,7 +125,8 @@ function renderStatus() {
   // Week
   const weekSec = status.week_seconds + extra;
   $("week-worked").textContent = fmtDur(weekSec);
-  $("week-bar").style.width = Math.min(100, (weekSec / status.weekly_target) * 100) + "%";
+  $("week-target").textContent = hours(status.weekly_target);
+  $("week-bar").style.width = status.weekly_target ? Math.min(100, (weekSec / status.weekly_target) * 100) + "%" : "0";
   const weekLeft = status.weekly_target - weekSec;
   $("week-remaining").textContent = weekLeft > 0
     ? `${fmtDur(weekLeft)} left this week`
@@ -537,13 +538,72 @@ function renderSettings() {
   $("enable-notify").hidden = perm !== "default";
   // Nudge until notifications are set up.
   $("settings-btn").classList.toggle("attention", notifySupported && perm !== "granted");
-  if (status) {
-    const daily = Math.max(...status.week_days.map((d) => d.target));
-    const days = status.week_days.map((d, i) => (d.target ? DAY_NAMES[i] : null)).filter(Boolean);
-    $("targets").textContent = `${fmtDur(daily).replace(" 00m", "")} per workday (${days.join(", ")}), `
-      + `${fmtDur(status.weekly_target).replace(" 00m", "")} per week — change them at the top of app.py.`;
-  }
 }
+
+// ------------------------------------------------------------ settings (work goal)
+
+/** "8h", "7h 30m" */
+const hours = (sec) => fmtDur(sec).replace(" 00m", "");
+const goalText = (g) => `${hours(g.daily_seconds * g.workdays.length)} per week · `
+  + `${g.workdays.map((d) => DAY_NAMES[d]).join(", ")} · ${hours(g.daily_seconds)} per workday`;
+
+$("goal-days").innerHTML = DAY_NAMES.map((n, i) =>
+  `<label><input type="checkbox" value="${i}"> ${n}</label>`).join("");
+
+async function loadGoals() {
+  const goals = await api("GET", "/api/goals");
+  const today = status.today;
+  const current = goals.filter((g) => !g.valid_from || g.valid_from <= today).pop();
+  $("goal-current").innerHTML = `<b>Now:</b> ${goalText(current)}`;
+  const planned = $("goal-planned");
+  planned.innerHTML = "";
+  for (const g of goals.filter((g) => g.valid_from > today)) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>From ${fmtLongDate(parseYmd(g.valid_from))}: ${goalText(g)}</span>`;
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn link";
+    cancel.textContent = "Cancel";
+    cancel.onclick = async () => { await api("DELETE", `/api/goals/${g.valid_from}`); await goalsChanged(); };
+    li.appendChild(cancel);
+    planned.appendChild(li);
+  }
+  // Prefill the form with the current goal, starting today.
+  $("goal-hours").value = (current.daily_seconds * current.workdays.length) / 3600;
+  $("goal-days").querySelectorAll("input").forEach((c) => (c.checked = current.workdays.includes(Number(c.value))));
+  $("goal-from").value = $("goal-from").min = today;
+  $("goal-error").textContent = "";
+  goalHint();
+}
+
+function goalHint() {
+  const days = $("goal-days").querySelectorAll("input:checked").length;
+  const h = Number($("goal-hours").value);
+  $("goal-hint").textContent = days && h
+    ? `= ${hours((h * 3600) / days)} per workday. Applies from the start date on — past days keep the goal they had.`
+    : "Pick the hours and at least one workday.";
+}
+$("goal-form").addEventListener("input", goalHint);
+
+async function goalsChanged() {
+  await refreshAll();  // today, week and overtime use the new goal
+  await loadGoals();
+}
+
+$("goal-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("PUT", "/api/goals", {
+      valid_from: $("goal-from").value,
+      weekly_hours: Number($("goal-hours").value),
+      workdays: [...$("goal-days").querySelectorAll("input:checked")].map((c) => Number(c.value)),
+    });
+    await goalsChanged();
+    $("goal-hint").textContent = "Saved ✓ " + $("goal-hint").textContent;
+  } catch (err) {
+    $("goal-error").textContent = err.message;
+  }
+});
 
 async function enableNotifications() {
   if (notifySupported && Notification.permission === "default") await Notification.requestPermission();
@@ -553,6 +613,7 @@ async function enableNotifications() {
 
 $("settings-btn").addEventListener("click", () => {
   renderSettings();
+  loadGoals();
   $("test-result").textContent = "";
   $("settings").showModal();
 });
