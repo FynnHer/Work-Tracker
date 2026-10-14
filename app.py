@@ -190,6 +190,8 @@ def status():
         ],
         "running": session_dict(run) if run else None,
         "last_reminder": last_reminder,
+        "reminder_kind": reminder_kind,
+        "watcher": watcher_running,
     })
 
 
@@ -365,6 +367,8 @@ def add_break(sid):
 
 URL = f"http://localhost:{os.environ.get('PORT', 47474)}"
 last_reminder = 0.0  # time of the last reminder; open tracker tabs show a notification when it changes
+reminder_kind = "comeback"  # or "test" (Settings → Send test notification)
+watcher_running = False
 tab_seen_at = 0.0   # last /api/status poll from a tab that is allowed to notify
 
 
@@ -373,13 +377,13 @@ def log(msg):
 
 
 def remind():
-    global last_reminder
+    global last_reminder, reminder_kind
     with sqlite3.connect(DB_PATH) as db:
         running = db.execute("SELECT 1 FROM sessions WHERE end_time IS NULL").fetchone()
     if running:
         log("reminder skipped: timer running")
         return
-    last_reminder = clock.time()
+    last_reminder, reminder_kind = clock.time(), "comeback"
     if clock.time() - tab_seen_at > 30:
         clock.sleep(15)  # after a wake the tab may not have polled yet
     if clock.time() - tab_seen_at <= 30:
@@ -388,6 +392,15 @@ def remind():
         log("reminder → no tab with notifications enabled, macOS notification")
         subprocess.run(["osascript", "-e", 'display notification "No timer running — open '
                         f'{URL} to start it." with title "Work Tracker" subtitle "Working?" sound name "Glass"'])
+
+
+@app.post("/api/test-notification")
+def test_notification():
+    """Settings → Send test notification: goes the same way as a real reminder (server → open tabs)."""
+    global last_reminder, reminder_kind
+    last_reminder, reminder_kind = clock.time(), "test"
+    log("test notification → browser tabs")
+    return jsonify({"ok": True})
 
 
 if sys.platform == "darwin":
@@ -499,5 +512,6 @@ init_db()
 
 if __name__ == "__main__":
     if sys.platform == "darwin" and os.environ.get("WAKE_PROMPT", "1") == "1":
+        watcher_running = True
         threading.Thread(target=wake_watcher, daemon=True).start()
     app.run(host="localhost", port=int(os.environ.get("PORT", 47474)), debug=False)

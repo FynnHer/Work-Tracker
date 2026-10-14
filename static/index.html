@@ -11,7 +11,7 @@
     <header>
       <h1>Work Tracker</h1>
       <span id="today-label" class="muted"></span>
-      <button id="notify-btn" class="btn ghost" hidden>Enable reminders</button>
+      <button id="settings-btn" class="btn ghost">⚙ Settings</button>
     </header>
 
     <!-- Timer -->
@@ -90,6 +90,41 @@
       <div id="form-error" class="error small"></div>
     </section>
   </main>
+
+  <dialog id="settings" class="settings">
+    <form method="dialog" class="settings-head">
+      <h2>Settings</h2>
+      <button class="btn link" aria-label="Close">✕</button>
+    </form>
+
+    <h3>Reminders &amp; notifications</h3>
+    <p class="small muted">When you come back to your Mac and no timer is running, this tab shows a notification.</p>
+    <ul class="checklist">
+      <li><span>Notifications in this browser</span> <b id="chk-browser"></b></li>
+      <li><span>Come-back reminders on this computer</span> <b id="chk-watcher"></b></li>
+    </ul>
+    <div class="settings-actions">
+      <button type="button" class="btn" id="enable-notify">Enable notifications</button>
+      <button type="button" class="btn start" id="test-notify">Send test notification</button>
+    </div>
+    <p id="test-result" class="small" role="status"></p>
+    <details id="notify-help" class="small">
+      <summary>Nothing showed up? Check these, in order</summary>
+      <ol>
+        <li><b>Allow the site</b> in the browser: click the icon left of the address bar →
+          <i>Notifications</i> → <i>Allow</i> (Firefox: <i>Permissions</i>; Safari: <i>Settings → Websites → Notifications</i>).</li>
+        <li><b>Allow the browser</b> in macOS: <i>System Settings → Notifications → (your browser)</i> →
+          <i>Allow notifications</i> on, style <i>Banners</i> or <i>Alerts</i>.</li>
+        <li><b>Focus / Do Not Disturb</b> must be off (Control Center).</li>
+        <li>Keep <b>one tracker tab open</b> (it can be in the background). Without a tab you get a plain macOS
+          notification instead.</li>
+        <li>Then press <i>Send test notification</i> again.</li>
+      </ol>
+    </details>
+
+    <h3>Targets</h3>
+    <p class="small muted" id="targets"></p>
+  </dialog>
 
   <div id="tooltip" class="tooltip" hidden></div>
   <script src="app.js"></script>

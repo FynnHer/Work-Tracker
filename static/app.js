@@ -63,9 +63,11 @@ let seenReminder = null;
 
 async function loadStatus() {
   status = await api("GET", "/api/status" + (canNotify() ? "?notify=1" : ""));
-  // The server updates `last_reminder` when you come back with no timer running.
+  // The server updates `last_reminder` when you come back with no timer running (or on a test).
   if (seenReminder !== null && status.last_reminder !== seenReminder && canNotify()) {
-    const n = new Notification("Work Tracker – Working?", { body: "No timer running — click to start.", tag: "work-tracker" });
+    const n = status.reminder_kind === "test"
+      ? new Notification("Work Tracker – test notification", { body: "It works! Reminders will look like this.", tag: "work-tracker" })
+      : new Notification("Work Tracker – Working?", { body: "No timer running — click to start.", tag: "work-tracker" });
     n.onclick = () => { window.focus(); $("note").focus(); n.close(); };
   }
   seenReminder = status.last_reminder;
@@ -514,14 +516,62 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && status) { renderStatus(); renderWeek(); }
 });
 
-// ------------------------------------------------------------ reminders (browser notifications)
+// ------------------------------------------------------------ settings (notifications)
 
-const notifyBtn = $("notify-btn");
-notifyBtn.hidden = !("Notification" in window) || Notification.permission !== "default";
-notifyBtn.addEventListener("click", async () => {
-  await Notification.requestPermission();
-  notifyBtn.hidden = Notification.permission !== "default";
-  await loadStatus();
+const notifySupported = "Notification" in window;
+const PERMISSION_TEXT = { granted: "✓ allowed", default: "not enabled yet", denied: "✗ blocked" };
+
+function renderSettings() {
+  const perm = notifySupported ? Notification.permission : "unsupported";
+  const browser = $("chk-browser");
+  browser.textContent = notifySupported ? PERMISSION_TEXT[perm] : "not supported";
+  browser.className = perm === "granted" ? "positive" : perm === "default" ? "" : "negative";
+  const watcher = $("chk-watcher");
+  watcher.textContent = status && status.watcher ? "✓ active" : "off (macOS only, or WAKE_PROMPT=0)";
+  watcher.className = status && status.watcher ? "positive" : "muted";
+  $("enable-notify").hidden = perm !== "default";
+  // Nudge until notifications are set up.
+  $("settings-btn").classList.toggle("attention", notifySupported && perm !== "granted");
+  if (status) {
+    const daily = Math.max(...status.week_days.map((d) => d.target));
+    const days = status.week_days.map((d, i) => (d.target ? DAY_NAMES[i] : null)).filter(Boolean);
+    $("targets").textContent = `${fmtDur(daily).replace(" 00m", "")} per workday (${days.join(", ")}), `
+      + `${fmtDur(status.weekly_target).replace(" 00m", "")} per week — change them at the top of app.py.`;
+  }
+}
+
+async function enableNotifications() {
+  if (notifySupported && Notification.permission === "default") await Notification.requestPermission();
+  renderSettings();
+  await loadStatus();  // starts reporting this tab as able to notify
+}
+
+$("settings-btn").addEventListener("click", () => {
+  renderSettings();
+  $("test-result").textContent = "";
+  $("settings").showModal();
+});
+$("enable-notify").addEventListener("click", enableNotifications);
+$("test-notify").addEventListener("click", async () => {
+  const result = $("test-result");
+  if (!notifySupported) {
+    result.textContent = "This browser can't show notifications — try Firefox, Chrome or Safari.";
+    return;
+  }
+  await enableNotifications();
+  if (Notification.permission !== "granted") {
+    result.textContent = "Notifications are blocked for this site — see “Nothing showed up?” below, step 1.";
+    $("notify-help").open = true;
+    return;
+  }
+  try {
+    await api("POST", "/api/test-notification");
+    await loadStatus();  // same path as a real reminder: server → this tab → notification
+    result.textContent = "Sent! You should see “Work Tracker – test notification” now. "
+      + "Nothing? Open “Nothing showed up?” below.";
+  } catch (e) {
+    result.textContent = "Couldn't reach the server: " + e.message;
+  }
 });
 
 // ------------------------------------------------------------ boot
@@ -538,6 +588,7 @@ async function init() {
   $("today-label").textContent = fmtLongDate(parseYmd(status.today));
   resetForm();
   await refreshAll();
+  renderSettings();
 
   // Tick the live numbers every second; resync with the server every 10s (also picks up reminders).
   setInterval(() => {
