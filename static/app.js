@@ -520,15 +520,16 @@ document.addEventListener("visibilitychange", () => {
 // ------------------------------------------------------------ settings (notifications)
 
 const notifySupported = "Notification" in window;
-const PERMISSION_TEXT = { granted: "✓ allowed", default: "not enabled yet", denied: "✗ blocked" };
+const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+const PERMISSION_TEXT = { granted: icon("check") + " allowed", default: "not enabled yet", denied: icon("blocked") + " blocked" };
 
 function renderSettings() {
   const perm = notifySupported ? Notification.permission : "unsupported";
   const browser = $("chk-browser");
-  browser.textContent = notifySupported ? PERMISSION_TEXT[perm] : "not supported";
+  browser.innerHTML = notifySupported ? PERMISSION_TEXT[perm] : "not supported";
   browser.className = perm === "granted" ? "positive" : perm === "default" ? "" : "negative";
   const watcher = $("chk-watcher");
-  watcher.textContent = status && status.watcher ? "✓ active" : "off (macOS only, or WAKE_PROMPT=0)";
+  watcher.innerHTML = status && status.watcher ? icon("check") + " active" : "off (macOS only, or WAKE_PROMPT=0)";
   watcher.className = status && status.watcher ? "positive" : "muted";
   $("enable-notify").hidden = perm !== "default";
   // Nudge until notifications are set up.
@@ -594,7 +595,7 @@ $("goal-form").addEventListener("submit", async (e) => {
       workdays: [...$("goal-days").querySelectorAll("input:checked")].map((c) => Number(c.value)),
     });
     await goalsChanged();
-    $("goal-hint").textContent = "Saved ✓ " + $("goal-hint").textContent;
+    $("goal-hint").innerHTML = icon("check") + " Saved. " + $("goal-hint").textContent;
   } catch (err) {
     $("goal-error").textContent = err.message;
   }
