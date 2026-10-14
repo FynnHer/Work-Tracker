@@ -83,7 +83,8 @@ function renderStatus() {
   const btn = $("toggle");
   btn.textContent = run ? "Stop" : "Start";
   btn.className = "btn " + (run ? "stop" : "start");
-  $("note").disabled = !!run;
+  const noteEl = $("note");
+  if (run && document.activeElement !== noteEl) noteEl.value = run.note;
 
   // Today
   const todaySec = status.today_seconds + extra;
@@ -144,7 +145,7 @@ function renderWeek() {
 $("toggle").addEventListener("click", async () => {
   try {
     if (status && status.running) {
-      await api("POST", "/api/stop");
+      await api("POST", "/api/stop", { note: $("note").value });
       $("note").value = "";
     } else {
       await api("POST", "/api/start", { note: $("note").value });
@@ -155,9 +156,25 @@ $("toggle").addEventListener("click", async () => {
   }
 });
 
+// While running, the note field edits the running session's note (saved on Enter / blur).
+async function saveRunningNote() {
+  const run = status && status.running;
+  if (!run || $("note").value.trim() === run.note) return;
+  try {
+    await api("PATCH", `/api/sessions/${run.id}`, { note: $("note").value });
+    await loadStatus();
+    if (selectedDay === status.today) await loadDay();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 $("note").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") $("toggle").click();
+  if (e.key !== "Enter") return;
+  if (status && status.running) $("note").blur();
+  else $("toggle").click();
 });
+$("note").addEventListener("blur", saveRunningNote);
 
 // ------------------------------------------------------------ heatmap
 
