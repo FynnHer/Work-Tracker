@@ -31,5 +31,10 @@ Then open <http://localhost:47474> (override with `PORT=...`).
   just keeps going. No extra installs, but macOS must allow notifications for your browser
   (System Settings → Notifications). Decisions are logged to stderr (`tracker.log` with autostart);
   disable with `WAKE_PROMPT=0`.
+- **Away tracking (macOS)** – the same watcher records when you were away (Mac asleep, screen locked,
+  display off / lid closed), from your last keyboard/trackpad input until you're back. The day view
+  shows a timeline per session (green = in use, grey = away) and lists the away periods; forgot to
+  stop the timer? Click **Stop timer at …** / **End session here** on the away period to end the
+  session when you left. Kept only for the running and the last 3 sessions.
 
 Targets are set at the top of `app.py` (`DAILY_TARGET`, `WEEKLY_TARGET`, `WORKDAYS`).

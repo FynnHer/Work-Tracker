@@ -49,6 +49,12 @@ def init_db():
                 note        TEXT NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_time);
+            -- Times the Mac was asleep / locked / display off (only kept for recent sessions).
+            CREATE TABLE IF NOT EXISTS away (
+                start_time  TEXT NOT NULL,          -- last keyboard/trackpad input before leaving
+                end_time    TEXT NOT NULL,          -- when you were back
+                reason      TEXT NOT NULL           -- sleep | lock | display-off
+            );
             """
         )
 
@@ -235,7 +241,17 @@ def list_sessions():
         "ORDER BY start_time",
         (hi, lo),
     ).fetchall()
-    return jsonify([session_dict(r) for r in rows])
+    db = get_db()
+    out = []
+    for r in rows:
+        s = session_dict(r)
+        s["away"] = [dict(a) for a in db.execute(
+            "SELECT start_time, end_time, reason FROM away WHERE start_time < ? AND end_time > ? "
+            "ORDER BY start_time",
+            (r["end_time"] or fmt(datetime.now()), r["start_time"]),
+        )]
+        out.append(s)
+    return jsonify(out)
 
 
 def read_session_body():
@@ -368,34 +384,54 @@ def screen_locked() -> bool:
     return locked
 
 
-def recently_active() -> bool:
-    """Keyboard/trackpad used in the last minute (rules out dark wakes)."""
+def idle_seconds() -> float:
+    """Seconds since the last keyboard/trackpad input."""
     v = _prop(_HID, _IDLE)
     if not v:
-        return False
+        return float("inf")
     ns = ctypes.c_int64()
     _cf.CFNumberGetValue(v, 4, ctypes.byref(ns))  # kCFNumberSInt64Type
     _cf.CFRelease(v)
-    return ns.value < 60e9
+    return ns.value / 1e9
+
+
+def recently_active() -> bool:
+    """Keyboard/trackpad used in the last minute (rules out dark wakes)."""
+    return idle_seconds() < 60
+
+
+def record_away(start: float, end: float, reason: str):
+    """Store an away period; keep only those overlapping the running + last 3 sessions."""
+    if end - start < 60:
+        return
+    with sqlite3.connect(DB_PATH) as db:
+        db.execute("INSERT INTO away VALUES (?, ?, ?)",
+                   (fmt(datetime.fromtimestamp(start)), fmt(datetime.fromtimestamp(end)), reason))
+        db.execute("DELETE FROM away WHERE end_time < (SELECT MIN(start_time) FROM "
+                   "(SELECT start_time FROM sessions ORDER BY start_time DESC LIMIT 4))")
 
 
 def wake_watcher():
     """Remind at login and whenever you come back: after sleep, lock or display off (e.g. lid closed).
     A running timer is left alone."""
     remind()
-    prev, pending = clock.time(), False
+    prev = last_input = clock.time()
+    pending = False
     while True:
         clock.sleep(10)
         now = clock.time()
         locked = screen_locked()
+        slept = now - prev > 30  # wall clock jumped
+        if not slept and not pending:
+            last_input = now - idle_seconds()  # after a sleep, keep the value from before it
         # ponytail: 10s polling, so an away shorter than that can slip through
-        away = "slept %ds" % (now - prev) if now - prev > 30 else "locked" if locked \
-            else "display off" if display_asleep() else None
+        away = "sleep" if slept else "lock" if locked else "display-off" if display_asleep() else None
         if away and not pending:
-            log("away (%s)" % away)
-            pending = True
+            pending, away_since, away_reason = True, last_input, away
+            log("away (%s) since %s" % (away, datetime.fromtimestamp(away_since).strftime("%H:%M:%S")))
         if pending and not locked and recently_active():
             log("back")
+            record_away(away_since, now, away_reason)
             remind()
             pending = False
         prev = now

@@ -290,11 +290,8 @@ async function loadDay() {
   }
   for (const s of sessions) {
     const li = document.createElement("li");
-    const sameDay = (iso) => iso && iso.slice(0, 10) === selectedDay;
-    const startTxt = sameDay(s.start_time) ? hhmm(s.start_time) : s.start_time.slice(5, 16).replace("T", " ");
-    const endTxt = s.running ? "now" : sameDay(s.end_time) ? hhmm(s.end_time) : s.end_time.slice(5, 16).replace("T", " ");
     li.innerHTML = `
-      <span class="times">${startTxt} – ${endTxt}</span>
+      <span class="times">${when(s.start_time)} – ${s.running ? "now" : when(s.end_time)}</span>
       <span class="dur">${fmtDur(s.seconds)}</span>
       <span class="note"></span>`;
     li.querySelector(".note").textContent = s.note;
@@ -315,8 +312,53 @@ async function loadDay() {
     } else {
       li.insertAdjacentHTML("beforeend", `<span class="small positive">running</span>`);
     }
+    if (s.away.length) li.appendChild(awayBlock(s));
     list.appendChild(li);
   }
+}
+
+/** "HH:MM" on the selected day, otherwise "MM-DD HH:MM". */
+const when = (iso) => iso.slice(0, 10) === selectedDay ? hhmm(iso) : iso.slice(5, 16).replace("T", " ");
+
+const AWAY_REASON = { sleep: "Mac asleep", lock: "screen locked", "display-off": "display off / lid closed" };
+
+/** Timeline of a session (green = Mac in use, grey = away) plus its away periods; each can become the end. */
+function awayBlock(s) {
+  const wrap = document.createElement("div");
+  wrap.className = "away";
+  const t0 = new Date(s.start_time), t1 = s.running ? new Date() : new Date(s.end_time);
+  const bar = document.createElement("div");
+  bar.className = "timeline";
+  wrap.appendChild(bar);
+  for (const a of s.away) {
+    const a0 = Math.max(new Date(a.start_time), t0), a1 = Math.min(new Date(a.end_time), t1);
+    const text = `Away ${when(a.start_time)} → ${when(a.end_time)} · ${fmtDur((a1 - a0) / 1000)} · ${AWAY_REASON[a.reason] || a.reason}`;
+    const seg = document.createElement("i");
+    seg.style.left = ((a0 - t0) / (t1 - t0)) * 100 + "%";
+    seg.style.width = ((a1 - a0) / (t1 - t0)) * 100 + "%";
+    seg.title = text;
+    bar.appendChild(seg);
+
+    const row = document.createElement("div");
+    row.className = "small muted";
+    row.textContent = text;
+    if (a.start_time > s.start_time) {
+      const btn = document.createElement("button");
+      btn.className = "btn link";
+      btn.textContent = s.running ? "Stop timer at " + hhmm(a.start_time) : "End session here";
+      btn.onclick = async () => {
+        try {
+          await api("PUT", `/api/sessions/${s.id}`, { start_time: s.start_time, end_time: a.start_time, note: s.note });
+          await refreshAll();
+        } catch (err) {
+          $("form-error").textContent = err.message;
+        }
+      };
+      row.appendChild(btn);
+    }
+    wrap.appendChild(row);
+  }
+  return wrap;
 }
 
 function resetForm() {
