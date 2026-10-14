@@ -60,15 +60,12 @@ function level(sec) {
 
 const canNotify = () => "Notification" in window && Notification.permission === "granted";
 let seenReminder = null;
-let lastNotification = null;
-
-/** Show a notification. No shared `tag`: a same-tag notification silently replaces the one still in
- *  Notification Center (no banner). Close the previous one instead, so they don't pile up either. */
+/** Show a notification. Never close or replace one from code (no `tag`, no `close()`): Firefox on
+ *  macOS gives all its notifications the same identity, so removing an old one also swallows the
+ *  banner of the next. Only a click closes it. */
 function notify(title, body) {
-  if (lastNotification) lastNotification.close();
   const n = new Notification(title, { body });
   n.onclick = () => { window.focus(); $("note").focus(); n.close(); };
-  lastNotification = n;
 }
 
 async function loadStatus() {
