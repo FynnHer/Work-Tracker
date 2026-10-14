@@ -37,14 +37,14 @@
       </div>
       <div class="card stat">
         <div class="label">This week</div>
-        <div class="value"><span id="week-worked">0h 00m</span> <span class="muted">/ 40h</span></div>
+        <div class="value"><span id="week-worked">0h 00m</span> <span class="muted">/ <span id="week-target">40h</span></span></div>
         <div class="bar"><div id="week-bar"></div></div>
         <div class="muted small" id="week-remaining"></div>
       </div>
       <div class="card stat">
         <div class="label">Overtime balance</div>
         <div class="value" id="balance">±0h 00m</div>
-        <div class="muted small">All days before today vs. 8h per workday</div>
+        <div class="muted small">All days before today vs. your work goal</div>
       </div>
       <div class="card stat">
         <div class="label">Overtime incl. today</div>
@@ -122,8 +122,20 @@
       </ol>
     </details>
 
-    <h3>Targets</h3>
-    <p class="small muted" id="targets"></p>
+    <h3>Work goal</h3>
+    <p class="small" id="goal-current"></p>
+    <ul id="goal-planned" class="checklist"></ul>
+    <form id="goal-form" class="goal-form">
+      <label>Hours per week <input type="number" id="goal-hours" min="1" max="168" step="0.25" required></label>
+      <fieldset>
+        <legend>Workdays</legend>
+        <div id="goal-days"></div>
+      </fieldset>
+      <label>Starting <input type="date" id="goal-from" required></label>
+      <button class="btn start">Save goal</button>
+    </form>
+    <p class="small muted" id="goal-hint"></p>
+    <p class="small error" id="goal-error"></p>
   </dialog>
 
   <div id="tooltip" class="tooltip" hidden></div>

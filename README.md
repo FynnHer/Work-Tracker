@@ -15,7 +15,7 @@
 </p>
 
 A small, self-hosted work-time tracker. Start and stop a timer, see how much you've worked today and
-this week against an 8 h / 40 h target, keep an overtime balance, and browse your history in a
+this week against your work goal (40 h a week by default — change it any time), keep an overtime balance, and browse your history in a
 GitHub-style heatmap. On macOS it can also start at login, remind you to start the timer when you
 come back to your laptop, and live in the menu bar.
 
@@ -33,6 +33,7 @@ Everything runs locally: one Python process, one SQLite file, no accounts, no cl
   6. [Menu bar item](#step-6--menu-bar-item-macos-optional) *(macOS, optional)*
 - [Daily use](#daily-use)
   - [Track your time](#track-your-time) · [Read your stats](#read-your-stats) ·
+    [Change your work goal](#change-your-work-goal) ·
     [Fix and add entries](#fix-and-add-entries) · [Add a lunch break](#add-a-lunch-break) ·
     [Forgot to stop the timer?](#forgot-to-stop-the-timer)
 - [Configuration](#configuration)
@@ -56,6 +57,7 @@ Everything runs locally: one Python process, one SQLite file, no accounts, no cl
 | ✏️ | **Day view**: add, edit, delete sessions; **breaks** (e.g. lunch) that don't count as work | all |
 | 🕒 | **Timeline per session**: when the Mac was in use vs. away; click any time to use it as start, end or break | all¹ |
 | 🔔 | **Come-back reminder**: notification when you return to the Mac and no timer is running | macOS |
+| 🎯 | **Work goal** you can change from any date on (e.g. 32 h on Mon–Thu) — past days keep theirs | all |
 | ⚙️ | **Settings** with a setup checklist and **Send test notification** | all |
 | 🚀 | **Start at login** via a LaunchAgent | macOS |
 | 🍏 | **Menu bar item** (SwiftBar plugin): running time, Start / Stop, today's stats | macOS |
@@ -234,14 +236,28 @@ time.
 
 | Tile | Meaning |
 |---|---|
-| **Today** | Worked today vs. the daily target (0 h on weekends). While running: when you'll reach the target. |
-| **This week** | Worked Monday–Sunday vs. 40 h. |
-| **Overtime balance** | Everything worked *before today* vs. 8 h per workday, since your first entry. |
+| **Today** | Worked today vs. today's goal (0 h on days off). While running: when you'll reach it. |
+| **This week** | Worked Monday–Sunday vs. this week's goal. |
+| **Overtime balance** | Everything worked *before today* vs. the goal that was valid on each of those days, since your first entry. |
 | **Overtime incl. today** | The balance plus today so far minus today's target — where you'd stand if you stopped now. |
 
-**This week** shows one bar per day (the dashed line is the target). The **heatmap** shows the last
+**This week** shows one bar per day (the dashed line is that day's goal). The **heatmap** shows the last
 12 months or any year from the dropdown; darker = more hours. Hover a day for its total, click it to
 open it in the day view.
+
+### Change your work goal
+
+Working fewer (or more) hours from some date on? Open **⚙ Settings → Work goal**:
+
+1. Enter your **hours per week**.
+2. Tick your **workdays** — the hours are split evenly across them (32 h on Mon–Thu = 8 h per workday).
+3. Pick the date it **starts** (today or later) and press **Save goal**.
+
+<p align="center"><img src="docs/goals.png" alt="Work goal settings: current goal, a planned change from 2 November, and the form" width="460"></p>
+
+Past days always keep the goal they had, so your overtime balance doesn't jump. A change that starts
+in the future shows up as *planned* and can be cancelled until then. A change in the middle of a week
+counts the old goal for the days before and the new one from that day on.
 
 ### Fix and add entries
 
@@ -289,7 +305,7 @@ yesterday's mistake without the database growing.
 
 | What | Where | Default |
 |---|---|---|
-| Daily / weekly target, workdays | `DAILY_TARGET`, `WEEKLY_TARGET`, `WORKDAYS` at the top of `app.py` | 8 h, 40 h, Mon–Fri |
+| Work goal (hours per week, workdays) | **⚙ Settings → Work goal**, from any date on. `DAILY_TARGET` / `WORKDAYS` at the top of `app.py` are the defaults for days before your first change. | 40 h, Mon–Fri |
 | Port | `PORT` environment variable | `47474` |
 | Database file | `TRACKER_DB` environment variable | `tracker.db` next to `app.py` |
 | Come-back watcher (reminders + away tracking) | `WAKE_PROMPT=0` disables it | on (macOS only) |
@@ -345,6 +361,7 @@ flowchart LR
 |---|---|---|
 | `sessions` | `id`, `start_time`, `end_time` (NULL while running), `note` | indexed by `start_time` |
 | `away` | `start_time`, `end_time`, `reason` (`sleep` · `lock` · `display-off`) | only rows overlapping the last 3 sessions are kept |
+| `targets` | `valid_from`, `daily_seconds`, `workdays` | one row per goal change; before the first row the defaults apply |
 
 **API**
 
@@ -352,6 +369,8 @@ flowchart LR
 |---|---|
 | `GET /api/status` | Everything for the tiles: today, week, balance, running session, `last_reminder`, `watcher` |
 | `POST /api/test-notification` | Settings → *Send test notification* (same path as a real reminder) |
+| `GET /api/goals` · `PUT /api/goals` | Work goal periods; set a new goal from today or a later date on |
+| `DELETE /api/goals/<date>` | Cancel a goal change that hasn't started yet |
 | `POST /api/start` · `POST /api/stop` | Start / stop the timer (optional `note`) |
 | `GET /api/days?from=…&to=…` | Seconds per day, for the heatmap |
 | `GET /api/sessions?date=…` | Sessions of a day, each with its `away` periods |
