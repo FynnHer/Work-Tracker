@@ -254,13 +254,18 @@ def list_sessions():
     return jsonify(out)
 
 
-def read_session_body():
+def read_session_body(end_optional=False):
+    """(start, end, note) from the JSON body; with end_optional an empty end_time gives end None."""
     data = request.get_json(silent=True) or {}
     try:
         start_dt = parse(data["start_time"])
-        end_dt = parse(data["end_time"])
+        end_dt = None if end_optional and not data.get("end_time") else parse(data["end_time"])
     except (KeyError, TypeError, ValueError):
         return None, bad_request("start_time and end_time are required (YYYY-MM-DDTHH:MM).")
+    if end_dt is None:
+        if start_dt > datetime.now():
+            return None, bad_request("Start cannot be in the future.")
+        return (fmt(start_dt), None, str(data.get("note", "")).strip()), None
     if end_dt <= start_dt:
         return None, bad_request("End must be after start.")
     if end_dt > datetime.now() + timedelta(minutes=1):
@@ -282,15 +287,24 @@ def add_session():
 
 @app.put("/api/sessions/<int:sid>")
 def edit_session(sid):
-    values, err = read_session_body()
+    """Edit a session; on the running one, an empty end_time keeps it running (otherwise it stops)."""
+    values, err = read_session_body(end_optional=True)
     if err:
         return err
     db = get_db()
-    cur = db.execute(
-        "UPDATE sessions SET start_time = ?, end_time = ?, note = ? WHERE id = ?", (*values, sid)
-    )
+    if values[1] is None:
+        cur = db.execute(
+            "UPDATE sessions SET start_time = ?, note = ? WHERE id = ? AND end_time IS NULL",
+            (values[0], values[2], sid),
+        )
+    else:
+        cur = db.execute(
+            "UPDATE sessions SET start_time = ?, end_time = ?, note = ? WHERE id = ?", (*values, sid)
+        )
     db.commit()
     if cur.rowcount == 0:
+        if values[1] is None and db.execute("SELECT 1 FROM sessions WHERE id = ?", (sid,)).fetchone():
+            return bad_request("End is required for a finished session.")
         return jsonify({"error": "Not found"}), 404
     row = db.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone()
     return jsonify(session_dict(row))

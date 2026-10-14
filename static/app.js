@@ -331,7 +331,8 @@ const localIso = (d) => `${ymd(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}
 const AWAY_REASON = { sleep: "Mac asleep", lock: "screen locked", "display-off": "display off / lid closed" };
 const openDetails = new Set();  // session ids whose details stay expanded across re-renders
 
-/** Collapsible per-session details: timeline (green = Mac in use, grey = away), away periods, add a break. */
+/** Collapsible per-session details: timeline (green = Mac in use, grey = away), away periods, add a break.
+ *  Click a time on the timeline or in the away list to use it as start, end or break boundary. */
 function detailsBlock(s) {
   const d = document.createElement("details");
   d.className = "details";
@@ -342,40 +343,64 @@ function detailsBlock(s) {
   const t0 = new Date(s.start_time), t1 = s.running ? new Date() : new Date(s.end_time);
   const bar = document.createElement("div");
   bar.className = "timeline";
+  bar.title = "";
   d.appendChild(bar);
+  // Time under the pointer; on a grey (away) part snap to its nearest edge.
+  const timeAt = (e) => {
+    const seg = e.target.closest("i");
+    if (seg) {
+      const r = seg.getBoundingClientRect();
+      return new Date(Number(e.clientX - r.left < r.width / 2 ? seg.dataset.from : seg.dataset.to));
+    }
+    const r = bar.getBoundingClientRect();
+    return new Date(t0.getTime() + ((e.clientX - r.left) / r.width) * (t1 - t0));
+  };
+  bar.onmousemove = (e) => {
+    tooltip.textContent = hhmm(localIso(timeAt(e))) + " — click to use";
+    tooltip.style.left = e.clientX + "px";
+    tooltip.style.top = bar.getBoundingClientRect().top - 6 + "px";
+    tooltip.hidden = false;
+  };
+  bar.onmouseleave = () => (tooltip.hidden = true);
+  bar.onclick = (e) => openTimeMenu(e, timeAt(e), s, d);
+
+  const ends = document.createElement("div");
+  ends.className = "timeline-ends small muted";
+  ends.innerHTML = `<span>${when(s.start_time)}</span><span>${s.running ? "now" : when(s.end_time)}</span>`;
+  d.appendChild(ends);
+
   for (const a of s.away) {
     const a0 = Math.max(new Date(a.start_time), t0), a1 = Math.min(new Date(a.end_time), t1);
-    const text = `Away ${when(a.start_time)} → ${when(a.end_time)} · ${fmtDur((a1 - a0) / 1000)} · ${AWAY_REASON[a.reason] || a.reason}`;
     const seg = document.createElement("i");
     seg.style.left = ((a0 - t0) / (t1 - t0)) * 100 + "%";
     seg.style.width = ((a1 - a0) / (t1 - t0)) * 100 + "%";
-    seg.title = text;
+    seg.dataset.from = new Date(a.start_time).getTime();
+    seg.dataset.to = new Date(a.end_time).getTime();
     bar.appendChild(seg);
 
     const row = document.createElement("div");
     row.className = "small muted";
-    row.textContent = text;
-    if (a.start_time > s.start_time) {
-      const btn = document.createElement("button");
-      btn.className = "btn link";
-      btn.textContent = `Use ${hhmm(a.start_time)} as end`;
-      btn.onclick = () => startEdit(s, a.start_time);
-      row.appendChild(btn);
-    }
+    row.innerHTML = `Away <button class="btn link t"></button> → <button class="btn link t"></button>
+      · ${fmtDur((a1 - a0) / 1000)} · ${AWAY_REASON[a.reason] || a.reason}`;
+    [a.start_time, a.end_time].forEach((iso, i) => {
+      const btn = row.querySelectorAll(".t")[i];
+      btn.textContent = when(iso);
+      btn.onclick = (e) => openTimeMenu(e, new Date(iso), s, d);
+    });
     d.appendChild(row);
   }
 
   // ponytail: break times are on the session's start date; sessions spanning midnight need Edit
   const f = document.createElement("form");
   f.className = "break-form small";
-  f.innerHTML = `<span class="muted">Break</span> <input type="time" required value="12:00"> –
-    <input type="time" required value="12:45"> <button class="btn">Add break</button>`;
-  const [b0, b1] = f.querySelectorAll("input");
+  f.innerHTML = `<span class="muted">Break</span> <input type="time" class="b0" required value="12:00"> –
+    <input type="time" class="b1" required value="12:45"> <button class="btn">Add break</button>`;
   const day = s.start_time.slice(0, 10);
   f.onsubmit = async (e) => {
     e.preventDefault();
     try {
-      await api("POST", `/api/sessions/${s.id}/break`, { start_time: `${day}T${b0.value}`, end_time: `${day}T${b1.value}` });
+      await api("POST", `/api/sessions/${s.id}/break`,
+        { start_time: `${day}T${f.querySelector(".b0").value}`, end_time: `${day}T${f.querySelector(".b1").value}` });
       await refreshAll();
     } catch (err) {
       $("form-error").textContent = err.message;
@@ -385,27 +410,68 @@ function detailsBlock(s) {
   return d;
 }
 
+// Small menu for a clicked time: the time can be fine-tuned, then used for the edit form or the break.
+const timeMenu = document.createElement("div");
+timeMenu.className = "time-menu";
+timeMenu.hidden = true;
+document.body.appendChild(timeMenu);
+document.addEventListener("click", (e) => { if (!timeMenu.contains(e.target)) timeMenu.hidden = true; });
+
+function openTimeMenu(e, date, s, d) {
+  e.stopPropagation();
+  e.preventDefault();
+  tooltip.hidden = true;
+  timeMenu.innerHTML = `<input type="time" value="${hhmm(localIso(date))}">
+    <button class="btn link" data-a="start">Set as start</button>
+    <button class="btn link" data-a="end">Set as end</button>
+    <button class="btn link" data-a="b0">Break from</button>
+    <button class="btn link" data-a="b1">Break until</button>`;
+  timeMenu.onclick = (ev) => {
+    const action = ev.target.dataset.a;
+    if (!action) return;
+    const hm = timeMenu.querySelector("input").value;
+    const iso = `${ymd(date)}T${hm}`;
+    if (action === "start") startEdit(s, { start: iso });
+    else if (action === "end") startEdit(s, { end: iso });
+    else d.querySelector("." + action).value = hm;
+    timeMenu.hidden = true;
+  };
+  timeMenu.style.left = e.pageX + "px";
+  timeMenu.style.top = e.pageY + 10 + "px";
+  timeMenu.hidden = false;
+  timeMenu.querySelector("input").focus();
+}
+
 function resetForm() {
   editingId = null;
   $("f-start").value = `${selectedDay}T09:00`;
   $("f-end").value = `${selectedDay}T17:00`;
   $("f-note").value = "";
+  $("f-end").required = true;
   $("f-submit").textContent = "Add entry";
   $("f-cancel").hidden = true;
   $("form-error").textContent = "";
 }
 
-/** Load a session into the form; `end` overrides the end time (a running session gets "now"). */
-function startEdit(s, end) {
+/** Load a session into the form; `set` overrides start/end. The running session keeps running
+ *  while End is empty ("Save"); with an end time it stops ("Save & stop"). */
+function startEdit(s, set = {}) {
   editingId = s.id;
-  $("f-start").value = s.start_time.slice(0, 16);
-  $("f-end").value = (end || s.end_time || localIso(new Date())).slice(0, 16);
+  editingRunning = s.running;
+  $("f-start").value = (set.start || s.start_time).slice(0, 16);
+  $("f-end").value = (set.end || s.end_time || "").slice(0, 16);
+  $("f-end").required = !s.running;
   $("f-note").value = s.note;
-  $("f-submit").textContent = s.running ? "Save & stop" : "Save";
-  $("session-form").scrollIntoView({ block: "nearest" });
+  submitLabel();
   $("f-cancel").hidden = false;
   $("form-error").textContent = "";
+  $("session-form").scrollIntoView({ block: "nearest" });
 }
+
+let editingRunning = false;
+const submitLabel = () =>
+  ($("f-submit").textContent = !editingRunning ? "Save" : $("f-end").value ? "Save & stop" : "Save (keeps running)");
+$("f-end").addEventListener("input", () => editingId && submitLabel());
 
 $("f-cancel").addEventListener("click", resetForm);
 
