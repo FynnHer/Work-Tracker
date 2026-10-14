@@ -219,3 +219,8 @@ input, select {
 #goal-days label { gap: 4px; }
 #goal-days input { width: auto; }
 .goal-form .btn { justify-self: start; }
+
+/* Icons */
+.icon { width: 1.1em; height: 1.1em; vertical-align: -0.2em; flex-shrink: 0; }
+.btn .icon { margin-right: 2px; }
+.checklist b { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
