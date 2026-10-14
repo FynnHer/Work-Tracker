@@ -1,6 +1,6 @@
 """Work Tracker — Flask + SQLite backend.
 
-Run:  python app.py   then open http://localhost:8080
+Run:  python app.py   then open http://localhost:47474
 """
 import os
 import sqlite3
@@ -285,4 +285,4 @@ def delete_session(sid):
 init_db()
 
 if __name__ == "__main__":
-    app.run(host="localhost", port=8080, debug=False)
+    app.run(host="localhost", port=int(os.environ.get("PORT", 47474)), debug=False)

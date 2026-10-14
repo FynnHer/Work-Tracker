@@ -7,12 +7,14 @@ Backend: Python + Flask, data stored in SQLite (`tracker.db`, created automatica
 
 ## Run
 
+Requires Python 3.9+.
+
 ```powershell
 pip install -r requirements.txt
 python app.py
 ```
 
-Then open <http://localhost:8080>.
+Then open <http://localhost:47474> (override with `PORT=...`).
 
 ## Features
 
