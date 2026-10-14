@@ -60,15 +60,23 @@ function level(sec) {
 
 const canNotify = () => "Notification" in window && Notification.permission === "granted";
 let seenReminder = null;
+let lastNotification = null;
+
+/** Show a notification. No shared `tag`: a same-tag notification silently replaces the one still in
+ *  Notification Center (no banner). Close the previous one instead, so they don't pile up either. */
+function notify(title, body) {
+  if (lastNotification) lastNotification.close();
+  const n = new Notification(title, { body });
+  n.onclick = () => { window.focus(); $("note").focus(); n.close(); };
+  lastNotification = n;
+}
 
 async function loadStatus() {
   status = await api("GET", "/api/status" + (canNotify() ? "?notify=1" : ""));
   // The server updates `last_reminder` when you come back with no timer running (or on a test).
   if (seenReminder !== null && status.last_reminder !== seenReminder && canNotify()) {
-    const n = status.reminder_kind === "test"
-      ? new Notification("Work Tracker – test notification", { body: "It works! Reminders will look like this.", tag: "work-tracker" })
-      : new Notification("Work Tracker – Working?", { body: "No timer running — click to start.", tag: "work-tracker" });
-    n.onclick = () => { window.focus(); $("note").focus(); n.close(); };
+    if (status.reminder_kind === "test") notify("Work Tracker – test notification", "It works! Reminders will look like this.");
+    else notify("Work Tracker – Working?", "No timer running — click to start.");
   }
   seenReminder = status.last_reminder;
   fetchedAt = performance.now();
