@@ -401,14 +401,17 @@ def recently_active() -> bool:
 
 
 def record_away(start: float, end: float, reason: str):
-    """Store an away period; keep only those overlapping the running + last 3 sessions."""
+    """Store an away period; only periods overlapping the last 3 sessions are kept."""
     if end - start < 60:
         return
     with sqlite3.connect(DB_PATH) as db:
         db.execute("INSERT INTO away VALUES (?, ?, ?)",
                    (fmt(datetime.fromtimestamp(start)), fmt(datetime.fromtimestamp(end)), reason))
-        db.execute("DELETE FROM away WHERE end_time < (SELECT MIN(start_time) FROM "
-                   "(SELECT start_time FROM sessions ORDER BY start_time DESC LIMIT 4))")
+        db.execute(
+            "DELETE FROM away WHERE NOT EXISTS (SELECT 1 FROM "
+            "(SELECT start_time, end_time FROM sessions ORDER BY start_time DESC LIMIT 3) AS s "
+            "WHERE away.start_time < COALESCE(s.end_time, '9999') AND away.end_time > s.start_time)"
+        )
 
 
 def wake_watcher():

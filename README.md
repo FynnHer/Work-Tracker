@@ -35,6 +35,6 @@ Then open <http://localhost:47474> (override with `PORT=...`).
   display off / lid closed), from your last keyboard/trackpad input until you're back. The day view
   shows a timeline per session (green = in use, grey = away) and lists the away periods; forgot to
   stop the timer? Click **Stop timer at …** / **End session here** on the away period to end the
-  session when you left. Kept only for the running and the last 3 sessions.
+  session when you left. Only kept for the last 3 sessions (a few rows).
 
 Targets are set at the top of `app.py` (`DAILY_TARGET`, `WEEKLY_TARGET`, `WORKDAYS`).
