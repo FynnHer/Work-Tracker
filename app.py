@@ -306,6 +306,29 @@ def delete_session(sid):
     return "", 204
 
 
+@app.post("/api/sessions/<int:sid>/break")
+def add_break(sid):
+    """Cut a break (e.g. lunch) out of a session: it becomes two sessions, before and after."""
+    data = request.get_json(silent=True) or {}
+    try:
+        b0, b1 = parse(data["start_time"]), parse(data["end_time"])
+    except (KeyError, TypeError, ValueError):
+        return bad_request("start_time and end_time are required (YYYY-MM-DDTHH:MM).")
+    db = get_db()
+    row = db.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone()
+    if row is None:
+        return jsonify({"error": "Not found"}), 404
+    end = parse(row["end_time"]) if row["end_time"] else datetime.now()
+    if not parse(row["start_time"]) < b0 < b1 < end:
+        return bad_request("The break must lie within the session (and be over already).")
+    db.execute("UPDATE sessions SET end_time = ? WHERE id = ?", (fmt(b0), sid))
+    db.execute(  # end_time NULL → the running timer continues in the second part
+        "INSERT INTO sessions (start_time, end_time, note) VALUES (?, ?, ?)", (fmt(b1), row["end_time"], row["note"])
+    )
+    db.commit()
+    return "", 204
+
+
 # ---------------------------------------------------------------- wake reminder (macOS)
 
 URL = f"http://localhost:{os.environ.get('PORT', 47474)}"

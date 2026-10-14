@@ -288,18 +288,25 @@ async function loadDay() {
     list.innerHTML = `<li class="empty">No sessions on this day.</li>`;
     return;
   }
+  let prevEnd = null;
   for (const s of sessions) {
+    if (prevEnd && s.start_time > prevEnd) {  // gap between two sessions, e.g. a lunch break
+      list.insertAdjacentHTML("beforeend", `<li class="gap small muted">Break ${when(prevEnd)} – ${when(s.start_time)}
+        · ${fmtDur((new Date(s.start_time) - new Date(prevEnd)) / 1000)}</li>`);
+    }
+    prevEnd = s.end_time;
     const li = document.createElement("li");
     li.innerHTML = `
       <span class="times">${when(s.start_time)} – ${s.running ? "now" : when(s.end_time)}</span>
       <span class="dur">${fmtDur(s.seconds)}</span>
       <span class="note"></span>`;
     li.querySelector(".note").textContent = s.note;
+    const edit = document.createElement("button");
+    edit.className = "btn link";
+    edit.textContent = "Edit";
+    edit.onclick = () => startEdit(s);
+    li.append(edit);
     if (!s.running) {
-      const edit = document.createElement("button");
-      edit.className = "btn link";
-      edit.textContent = "Edit";
-      edit.onclick = () => startEdit(s);
       const del = document.createElement("button");
       del.className = "btn link";
       del.textContent = "Delete";
@@ -308,28 +315,34 @@ async function loadDay() {
         await api("DELETE", `/api/sessions/${s.id}`);
         await refreshAll();
       };
-      li.append(edit, del);
+      li.append(del);
     } else {
       li.insertAdjacentHTML("beforeend", `<span class="small positive">running</span>`);
     }
-    if (s.away.length) li.appendChild(awayBlock(s));
+    li.appendChild(detailsBlock(s));
     list.appendChild(li);
   }
 }
 
 /** "HH:MM" on the selected day, otherwise "MM-DD HH:MM". */
 const when = (iso) => iso.slice(0, 10) === selectedDay ? hhmm(iso) : iso.slice(5, 16).replace("T", " ");
+const localIso = (d) => `${ymd(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 
 const AWAY_REASON = { sleep: "Mac asleep", lock: "screen locked", "display-off": "display off / lid closed" };
+const openDetails = new Set();  // session ids whose details stay expanded across re-renders
 
-/** Timeline of a session (green = Mac in use, grey = away) plus its away periods; each can become the end. */
-function awayBlock(s) {
-  const wrap = document.createElement("div");
-  wrap.className = "away";
+/** Collapsible per-session details: timeline (green = Mac in use, grey = away), away periods, add a break. */
+function detailsBlock(s) {
+  const d = document.createElement("details");
+  d.className = "details";
+  d.open = openDetails.has(s.id);
+  d.ontoggle = () => (d.open ? openDetails.add(s.id) : openDetails.delete(s.id));
+  d.innerHTML = `<summary class="small muted">Timeline & break${s.away.length ? ` · ${s.away.length} away` : ""}</summary>`;
+
   const t0 = new Date(s.start_time), t1 = s.running ? new Date() : new Date(s.end_time);
   const bar = document.createElement("div");
   bar.className = "timeline";
-  wrap.appendChild(bar);
+  d.appendChild(bar);
   for (const a of s.away) {
     const a0 = Math.max(new Date(a.start_time), t0), a1 = Math.min(new Date(a.end_time), t1);
     const text = `Away ${when(a.start_time)} → ${when(a.end_time)} · ${fmtDur((a1 - a0) / 1000)} · ${AWAY_REASON[a.reason] || a.reason}`;
@@ -345,20 +358,31 @@ function awayBlock(s) {
     if (a.start_time > s.start_time) {
       const btn = document.createElement("button");
       btn.className = "btn link";
-      btn.textContent = s.running ? "Stop timer at " + hhmm(a.start_time) : "End session here";
-      btn.onclick = async () => {
-        try {
-          await api("PUT", `/api/sessions/${s.id}`, { start_time: s.start_time, end_time: a.start_time, note: s.note });
-          await refreshAll();
-        } catch (err) {
-          $("form-error").textContent = err.message;
-        }
-      };
+      btn.textContent = `Use ${hhmm(a.start_time)} as end`;
+      btn.onclick = () => startEdit(s, a.start_time);
       row.appendChild(btn);
     }
-    wrap.appendChild(row);
+    d.appendChild(row);
   }
-  return wrap;
+
+  // ponytail: break times are on the session's start date; sessions spanning midnight need Edit
+  const f = document.createElement("form");
+  f.className = "break-form small";
+  f.innerHTML = `<span class="muted">Break</span> <input type="time" required value="12:00"> –
+    <input type="time" required value="12:45"> <button class="btn">Add break</button>`;
+  const [b0, b1] = f.querySelectorAll("input");
+  const day = s.start_time.slice(0, 10);
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api("POST", `/api/sessions/${s.id}/break`, { start_time: `${day}T${b0.value}`, end_time: `${day}T${b1.value}` });
+      await refreshAll();
+    } catch (err) {
+      $("form-error").textContent = err.message;
+    }
+  };
+  d.appendChild(f);
+  return d;
 }
 
 function resetForm() {
@@ -371,12 +395,14 @@ function resetForm() {
   $("form-error").textContent = "";
 }
 
-function startEdit(s) {
+/** Load a session into the form; `end` overrides the end time (a running session gets "now"). */
+function startEdit(s, end) {
   editingId = s.id;
   $("f-start").value = s.start_time.slice(0, 16);
-  $("f-end").value = s.end_time.slice(0, 16);
+  $("f-end").value = (end || s.end_time || localIso(new Date())).slice(0, 16);
   $("f-note").value = s.note;
-  $("f-submit").textContent = "Save";
+  $("f-submit").textContent = s.running ? "Save & stop" : "Save";
+  $("session-form").scrollIntoView({ block: "nearest" });
   $("f-cancel").hidden = false;
   $("form-error").textContent = "";
 }

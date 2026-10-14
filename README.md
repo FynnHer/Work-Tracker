@@ -33,8 +33,10 @@ Then open <http://localhost:47474> (override with `PORT=...`).
   disable with `WAKE_PROMPT=0`.
 - **Away tracking (macOS)** – the same watcher records when you were away (Mac asleep, screen locked,
   display off / lid closed), from your last keyboard/trackpad input until you're back. The day view
-  shows a timeline per session (green = in use, grey = away) and lists the away periods; forgot to
-  stop the timer? Click **Stop timer at …** / **End session here** on the away period to end the
-  session when you left. Only kept for the last 3 sessions (a few rows).
+  lists them under each session's **Timeline & break** (click to expand; green = in use, grey = away).
+  Forgot to stop the timer? **Use … as end** puts the time you left into the edit form (Edit also
+  works on the running timer: *Save & stop*). Only kept for the last 3 sessions (a few rows).
+- **Breaks** – under **Timeline & break**, add a break (e.g. lunch 12:00–12:45): the session is split
+  in two, so the break doesn't count as work time; the gap shows as *Break* in the day view.
 
 Targets are set at the top of `app.py` (`DAILY_TARGET`, `WEEKLY_TARGET`, `WORKDAYS`).
