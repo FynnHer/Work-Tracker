@@ -194,7 +194,10 @@ def stop():
     run = running_session()
     if not run:
         return bad_request("Timer is not running.")
-    db.execute("UPDATE sessions SET end_time = ? WHERE id = ?", (fmt(datetime.now()), run["id"]))
+    note = (request.get_json(silent=True) or {}).get("note", run["note"]).strip()
+    db.execute(
+        "UPDATE sessions SET end_time = ?, note = ? WHERE id = ?", (fmt(datetime.now()), note, run["id"])
+    )
     db.commit()
     row = db.execute("SELECT * FROM sessions WHERE id = ?", (run["id"],)).fetchone()
     return jsonify(session_dict(row))
@@ -265,6 +268,19 @@ def edit_session(sid):
     cur = db.execute(
         "UPDATE sessions SET start_time = ?, end_time = ?, note = ? WHERE id = ?", (*values, sid)
     )
+    db.commit()
+    if cur.rowcount == 0:
+        return jsonify({"error": "Not found"}), 404
+    row = db.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone()
+    return jsonify(session_dict(row))
+
+
+@app.patch("/api/sessions/<int:sid>")
+def edit_note(sid):
+    """Update only the note — works on the running session too."""
+    note = str((request.get_json(silent=True) or {}).get("note", "")).strip()
+    db = get_db()
+    cur = db.execute("UPDATE sessions SET note = ? WHERE id = ?", (note, sid))
     db.commit()
     if cur.rowcount == 0:
         return jsonify({"error": "Not found"}), 404

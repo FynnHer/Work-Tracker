@@ -16,7 +16,8 @@ Then open <http://localhost:8080>.
 
 ## Features
 
-- **Timer** – Start/Stop with an optional note. Only one session runs at a time; it keeps
+- **Timer** – Start/Stop with a note of what you're working on; the note stays editable while the
+  timer runs (Enter or click away to save). Only one session runs at a time; it keeps
   running even if you close the browser.
 - **Today / This week** – worked vs. target, time remaining, and the time you'll be done today.
 - **Overtime balance** – total worked vs. 8h per workday (Mon–Fri) for all days before today.

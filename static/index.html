@@ -21,7 +21,7 @@
         <div id="since" class="muted small">Timer stopped</div>
       </div>
       <div class="timer-actions">
-        <input id="note" type="text" placeholder="What are you working on? (optional)" maxlength="200">
+        <input id="note" type="text" placeholder="What are you working on? (editable while running)" maxlength="1000">
         <button id="toggle" class="btn start">Start</button>
       </div>
     </section>
@@ -77,7 +77,7 @@
       <form id="session-form" class="session-form">
         <label>Start <input type="datetime-local" id="f-start" required></label>
         <label>End <input type="datetime-local" id="f-end" required></label>
-        <label class="grow">Note <input type="text" id="f-note" maxlength="200"></label>
+        <label class="grow">Note <input type="text" id="f-note" maxlength="1000"></label>
         <button type="submit" class="btn" id="f-submit">Add entry</button>
         <button type="button" class="btn ghost" id="f-cancel" hidden>Cancel</button>
       </form>
