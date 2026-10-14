@@ -20,6 +20,7 @@ Then open <http://localhost:8080>.
   running even if you close the browser.
 - **Today / This week** – worked vs. target, time remaining, and the time you'll be done today.
 - **Overtime balance** – total worked vs. 8h per workday (Mon–Fri) for all days before today.
+- **Overtime incl. today** – the same balance with today counted so far ("if you stopped now").
 - **Activity heatmap** – last 12 months or any year; darker = more hours. Click a day to see it.
 - **Day view** – list, add, edit or delete sessions (e.g. if you forgot to start/stop the timer).
 
