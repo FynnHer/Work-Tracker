@@ -38,6 +38,15 @@ uses port 47474. Undo with `./autostart.sh remove`.
   just keeps going. No extra installs, but macOS must allow notifications for your browser
   (System Settings → Notifications). Decisions are logged to stderr (`tracker.log` with autostart);
   disable with `WAKE_PROMPT=0`.
+- **Away tracking (macOS)** – the same watcher records when you were away (Mac asleep, screen locked,
+  display off / lid closed), from your last keyboard/trackpad input until you're back. The day view
+  lists them under each session's **Timeline & break** (click to expand; green = in use, grey = away).
+  Click any time on the timeline (grey parts snap to when you left / came back) or in the away list
+  to use it as **start**, **end**, **break from** or **break until** — e.g. forgot to stop the timer?
+  Click where the lid was closed → *Set as end* → *Save & stop*. Edit also works on the running
+  timer (empty End keeps it running). Only kept for the last 3 sessions (a few rows).
+- **Breaks** – under **Timeline & break**, add a break (e.g. lunch 12:00–12:45): the session is split
+  in two, so the break doesn't count as work time; the gap shows as *Break* in the day view.
 
 Targets are set at the top of `app.py` (`DAILY_TARGET`, `WEEKLY_TARGET`, `WORKDAYS`).
 

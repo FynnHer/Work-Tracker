@@ -51,6 +51,12 @@ def init_db():
                 note        TEXT NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_time);
+            -- Times the Mac was asleep / locked / display off (only kept for recent sessions).
+            CREATE TABLE IF NOT EXISTS away (
+                start_time  TEXT NOT NULL,          -- last keyboard/trackpad input before leaving
+                end_time    TEXT NOT NULL,          -- when you were back
+                reason      TEXT NOT NULL           -- sleep | lock | display-off
+            );
             """
         )
 
@@ -240,16 +246,31 @@ def list_sessions():
         "ORDER BY start_time",
         (hi, lo),
     ).fetchall()
-    return jsonify([session_dict(r) for r in rows])
+    db = get_db()
+    out = []
+    for r in rows:
+        s = session_dict(r)
+        s["away"] = [dict(a) for a in db.execute(
+            "SELECT start_time, end_time, reason FROM away WHERE start_time < ? AND end_time > ? "
+            "ORDER BY start_time",
+            (r["end_time"] or fmt(datetime.now()), r["start_time"]),
+        )]
+        out.append(s)
+    return jsonify(out)
 
 
-def read_session_body():
+def read_session_body(end_optional=False):
+    """(start, end, note) from the JSON body; with end_optional an empty end_time gives end None."""
     data = request.get_json(silent=True) or {}
     try:
         start_dt = parse(data["start_time"])
-        end_dt = parse(data["end_time"])
+        end_dt = None if end_optional and not data.get("end_time") else parse(data["end_time"])
     except (KeyError, TypeError, ValueError):
         return None, bad_request("start_time and end_time are required (YYYY-MM-DDTHH:MM).")
+    if end_dt is None:
+        if start_dt > datetime.now():
+            return None, bad_request("Start cannot be in the future.")
+        return (fmt(start_dt), None, str(data.get("note", "")).strip()), None
     if end_dt <= start_dt:
         return None, bad_request("End must be after start.")
     if end_dt > datetime.now() + timedelta(minutes=1):
@@ -271,15 +292,24 @@ def add_session():
 
 @app.put("/api/sessions/<int:sid>")
 def edit_session(sid):
-    values, err = read_session_body()
+    """Edit a session; on the running one, an empty end_time keeps it running (otherwise it stops)."""
+    values, err = read_session_body(end_optional=True)
     if err:
         return err
     db = get_db()
-    cur = db.execute(
-        "UPDATE sessions SET start_time = ?, end_time = ?, note = ? WHERE id = ?", (*values, sid)
-    )
+    if values[1] is None:
+        cur = db.execute(
+            "UPDATE sessions SET start_time = ?, note = ? WHERE id = ? AND end_time IS NULL",
+            (values[0], values[2], sid),
+        )
+    else:
+        cur = db.execute(
+            "UPDATE sessions SET start_time = ?, end_time = ?, note = ? WHERE id = ?", (*values, sid)
+        )
     db.commit()
     if cur.rowcount == 0:
+        if values[1] is None and db.execute("SELECT 1 FROM sessions WHERE id = ?", (sid,)).fetchone():
+            return bad_request("End is required for a finished session.")
         return jsonify({"error": "Not found"}), 404
     row = db.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone()
     return jsonify(session_dict(row))
@@ -305,6 +335,29 @@ def delete_session(sid):
     db.commit()
     if cur.rowcount == 0:
         return jsonify({"error": "Not found"}), 404
+    return "", 204
+
+
+@app.post("/api/sessions/<int:sid>/break")
+def add_break(sid):
+    """Cut a break (e.g. lunch) out of a session: it becomes two sessions, before and after."""
+    data = request.get_json(silent=True) or {}
+    try:
+        b0, b1 = parse(data["start_time"]), parse(data["end_time"])
+    except (KeyError, TypeError, ValueError):
+        return bad_request("start_time and end_time are required (YYYY-MM-DDTHH:MM).")
+    db = get_db()
+    row = db.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone()
+    if row is None:
+        return jsonify({"error": "Not found"}), 404
+    end = parse(row["end_time"]) if row["end_time"] else datetime.now()
+    if not parse(row["start_time"]) < b0 < b1 < end:
+        return bad_request("The break must lie within the session (and be over already).")
+    db.execute("UPDATE sessions SET end_time = ? WHERE id = ?", (fmt(b0), sid))
+    db.execute(  # end_time NULL → the running timer continues in the second part
+        "INSERT INTO sessions (start_time, end_time, note) VALUES (?, ?, ?)", (fmt(b1), row["end_time"], row["note"])
+    )
+    db.commit()
     return "", 204
 
 
@@ -386,34 +439,57 @@ def screen_locked() -> bool:
     return locked
 
 
-def recently_active() -> bool:
-    """Keyboard/trackpad used in the last minute (rules out dark wakes)."""
+def idle_seconds() -> float:
+    """Seconds since the last keyboard/trackpad input."""
     v = _prop(_HID, _IDLE)
     if not v:
-        return False
+        return float("inf")
     ns = ctypes.c_int64()
     _cf.CFNumberGetValue(v, 4, ctypes.byref(ns))  # kCFNumberSInt64Type
     _cf.CFRelease(v)
-    return ns.value < 60e9
+    return ns.value / 1e9
+
+
+def recently_active() -> bool:
+    """Keyboard/trackpad used in the last minute (rules out dark wakes)."""
+    return idle_seconds() < 60
+
+
+def record_away(start: float, end: float, reason: str):
+    """Store an away period; only periods overlapping the last 3 sessions are kept."""
+    if end - start < 60:
+        return
+    with sqlite3.connect(DB_PATH) as db:
+        db.execute("INSERT INTO away VALUES (?, ?, ?)",
+                   (fmt(datetime.fromtimestamp(start)), fmt(datetime.fromtimestamp(end)), reason))
+        db.execute(
+            "DELETE FROM away WHERE NOT EXISTS (SELECT 1 FROM "
+            "(SELECT start_time, end_time FROM sessions ORDER BY start_time DESC LIMIT 3) AS s "
+            "WHERE away.start_time < COALESCE(s.end_time, '9999') AND away.end_time > s.start_time)"
+        )
 
 
 def wake_watcher():
     """Remind at login and whenever you come back: after sleep, lock or display off (e.g. lid closed).
     A running timer is left alone."""
     remind()
-    prev, pending = clock.time(), False
+    prev = last_input = clock.time()
+    pending = False
     while True:
         clock.sleep(10)
         now = clock.time()
         locked = screen_locked()
+        slept = now - prev > 30  # wall clock jumped
+        if not slept and not pending:
+            last_input = now - idle_seconds()  # after a sleep, keep the value from before it
         # ponytail: 10s polling, so an away shorter than that can slip through
-        away = "slept %ds" % (now - prev) if now - prev > 30 else "locked" if locked \
-            else "display off" if display_asleep() else None
+        away = "sleep" if slept else "lock" if locked else "display-off" if display_asleep() else None
         if away and not pending:
-            log("away (%s)" % away)
-            pending = True
+            pending, away_since, away_reason = True, last_input, away
+            log("away (%s) since %s" % (away, datetime.fromtimestamp(away_since).strftime("%H:%M:%S")))
         if pending and not locked and recently_active():
             log("back")
+            record_away(away_since, now, away_reason)
             remind()
             pending = False
         prev = now
