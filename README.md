@@ -7,8 +7,8 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#tutorial">Tutorial</a> ·
+  <a href="#setup-guide">Setup guide</a> ·
+  <a href="#daily-use">Daily use</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#performance--footprint">Performance</a> ·
   <a href="docs/work-tracker.mp4">Video (MP4)</a>
@@ -24,16 +24,17 @@ Everything runs locally: one Python process, one SQLite file, no accounts, no cl
 ## Table of contents
 
 - [Features](#features)
-- [Quick start](#quick-start)
-- [Tutorial](#tutorial)
-  1. [Track your time](#1-track-your-time)
-  2. [Read your stats](#2-read-your-stats)
-  3. [Fix and add entries (day view)](#3-fix-and-add-entries-day-view)
-  4. [Add a lunch break](#4-add-a-lunch-break)
-  5. [Forgot to stop the timer? Use the timeline](#5-forgot-to-stop-the-timer-use-the-timeline)
-  6. [Come-back reminders (macOS)](#6-come-back-reminders-macos)
-  7. [Menu bar item (macOS)](#7-menu-bar-item-macos)
-  8. [Start at login (macOS)](#8-start-at-login-macos)
+- [Setup guide](#setup-guide) — step by step
+  1. [Check that Python is installed](#step-1--check-that-python-is-installed)
+  2. [Download and start Work Tracker](#step-2--download-and-start-work-tracker)
+  3. [Open it in your browser](#step-3--open-it-in-your-browser)
+  4. [Turn on reminders](#step-4--turn-on-reminders-macos-recommended) *(macOS, recommended)*
+  5. [Start automatically at login](#step-5--start-automatically-at-login-macos-optional) *(macOS, optional)*
+  6. [Menu bar item](#step-6--menu-bar-item-macos-optional) *(macOS, optional)*
+- [Daily use](#daily-use)
+  - [Track your time](#track-your-time) · [Read your stats](#read-your-stats) ·
+    [Fix and add entries](#fix-and-add-entries) · [Add a lunch break](#add-a-lunch-break) ·
+    [Forgot to stop the timer?](#forgot-to-stop-the-timer)
 - [Configuration](#configuration)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
@@ -55,6 +56,7 @@ Everything runs locally: one Python process, one SQLite file, no accounts, no cl
 | ✏️ | **Day view**: add, edit, delete sessions; **breaks** (e.g. lunch) that don't count as work | all |
 | 🕒 | **Timeline per session**: when the Mac was in use vs. away; click any time to use it as start, end or break | all¹ |
 | 🔔 | **Come-back reminder**: notification when you return to the Mac and no timer is running | macOS |
+| ⚙️ | **Settings** with a setup checklist and **Send test notification** | all |
 | 🚀 | **Start at login** via a LaunchAgent | macOS |
 | 🍏 | **Menu bar item** (SwiftBar plugin): running time, Start / Stop, today's stats | macOS |
 
@@ -62,33 +64,162 @@ Everything runs locally: one Python process, one SQLite file, no accounts, no cl
 
 ---
 
-## Quick start
+## Setup guide
 
-**Requirements:** Python 3.9+ (that's all on Windows and Linux). The macOS extras are optional and
-listed in the tutorial.
+About 5 minutes. **Steps 1–3 are for everyone.** Steps 4–6 are optional extras for macOS — do 4,
+skip the others if you don't need them. Every step ends with a ✅ check so you know it worked.
+
+> **Know your way around Python?** `git clone https://github.com/Steakbus/Work-Tracker.git && cd Work-Tracker && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python app.py`,
+> then open <http://localhost:47474> and continue with [step 4](#step-4--turn-on-reminders-macos-recommended).
+
+### Step 1 — Check that Python is installed
+
+Open a terminal (**macOS:** *Applications → Utilities → Terminal* · **Windows:** *Start → “PowerShell”*)
+and run:
+
+```sh
+python3 --version        # Windows: python --version
+```
+
+✅ It prints `Python 3.9` or newer.
+
+<details>
+<summary>It says “command not found” or a version below 3.9</summary>
+
+- **macOS:** run `xcode-select --install` and confirm the dialog (or `brew install python`), then
+  open a new terminal window.
+- **Windows:** install Python from [python.org](https://www.python.org/downloads/) and tick
+  **“Add python.exe to PATH”** in the first installer screen. Open a new PowerShell window.
+- **Linux (Debian/Ubuntu):** `sudo apt install python3 python3-venv`
+</details>
+
+### Step 2 — Download and start Work Tracker
+
+**macOS / Linux:**
 
 ```sh
 git clone https://github.com/Steakbus/Work-Tracker.git
 cd Work-Tracker
-python3 -m venv .venv            # Windows: python -m venv .venv
-source .venv/bin/activate        # Windows (PowerShell): .venv\Scripts\Activate.ps1
-pip install -r requirements.txt  # just Flask
-python app.py
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python app.py
 ```
 
-Open **<http://localhost:47474>**. The database `tracker.db` is created next to `app.py` on first start.
+**Windows (PowerShell):**
 
-> Port 47474 is chosen so it doesn't collide with typical dev servers (3000, 5000, 8000, 8080…).
-> Use `PORT=5050 python app.py` for another one.
+```powershell
+git clone https://github.com/Steakbus/Work-Tracker.git
+cd Work-Tracker
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\python app.py
+```
 
-**macOS, the comfortable way:** `./autostart.sh` does the venv + install for you and keeps the server
-running from login on — see [Start at login](#8-start-at-login-macos).
+No `git`? Download the ZIP via the green **Code** button on GitHub, unpack it, and `cd` into the folder.
+
+✅ The terminal shows `Running on http://localhost:47474`.
+**Leave this window open** — closing it stops the tracker. (On macOS, [step 5](#step-5--start-automatically-at-login-macos-optional)
+makes it start by itself.)
+
+### Step 3 — Open it in your browser
+
+Go to **<http://localhost:47474>** and bookmark it. Tip: pin the tab (right-click the tab → *Pin*) so
+it's always open — that's also what makes reminders work best.
+
+✅ You see **Work Tracker** with a clock at `00:00:00` and a green **Start** button.
+
+Your data lives in `tracker.db` in the Work-Tracker folder — back that file up if you care about your
+history.
+
+### Step 4 — Turn on reminders (macOS, recommended)
+
+If you come back to your Mac (open the lid, unlock, wake the screen) and **no timer is running**,
+Work Tracker sends a notification. Clicking it jumps to the tracker tab. If the timer runs, nothing
+happens. Three switches must be on — the browser, macOS, and the tracker — so go through all of them:
+
+1. In the tracker, click **⚙ Settings** (top right; it's highlighted green until reminders are set up).
+2. Click **Enable notifications** and choose **Allow** in the browser's popup.
+3. **Allow your browser in macOS:** *System Settings → Notifications →* your browser (*Firefox*, *Google
+   Chrome* or *Safari*) → turn on **Allow notifications** and pick a style other than *None*.
+4. **Turn off Focus / Do Not Disturb** (moon icon in Control Center) — it silences notifications.
+5. Back in Settings, click **Send test notification**.
+
+✅ A notification **“Work Tracker – test notification”** appears. Both lines in Settings show a
+green ✓.
+
+<p align="center"><img src="docs/settings.png" alt="Settings: notifications allowed, come-back reminders active, test notification sent, troubleshooting steps" width="460"></p>
+
+<details>
+<summary>No notification? Check the site permission in your browser</summary>
+
+- **Firefox:** *Settings → Privacy & Security → Permissions → Notifications → Settings…* →
+  `http://localhost:47474` must be **Allow**. Also make sure *“Pause notifications until Firefox
+  restarts”* isn't ticked.
+- **Chrome:** open `chrome://settings/content/notifications` → `http://localhost:47474` under
+  **Allowed**.
+- **Safari:** *Safari → Settings → Websites → Notifications* → `localhost` set to **Allow**.
+
+Then press **Send test notification** again. If “Come-back reminders on this computer” says *off*,
+you're not on macOS or started the server with `WAKE_PROMPT=0`.
+</details>
+
+Keep **one tracker tab open** (pinned, in the background is fine). Without an open tab you still get
+a plain macOS notification, but clicking that one opens Script Editor instead of the tracker.
+
+### Step 5 — Start automatically at login (macOS, optional)
+
+Without this you have to run `.venv/bin/python app.py` again after every restart.
+
+1. In the terminal from step 2, press **Ctrl + C** to stop the tracker (the background service needs
+   port 47474 for itself).
+2. In the Work-Tracker folder, run once:
+
+   ```sh
+   ./autostart.sh
+   ```
+
+   It reuses the `.venv` from step 2 and keeps the server running in the background — you can close
+   the terminal afterwards.
+
+✅ `launchctl list | grep worktracker` prints a line, and after a restart <http://localhost:47474>
+works without opening a terminal.
+
+To undo: `./autostart.sh remove`. Logs go to `tracker.log` in the same folder.
+
+### Step 6 — Menu bar item (macOS, optional)
+
+Shows the running time in the menu bar, with **Start**, **Start with note…** and **Stop** one click
+away:
+
+```text
+⏱ 3:12
+├─ Running since 13:15 · API refactor: pagination
+├─ ■ Stop
+├─────────
+├─ Today: 7h 02m / 8h 00m
+├─ Week: 25h 59m / 40h 00m
+├─ Overtime incl. today: +18h 17m
+├─────────
+└─ Open tracker
+```
+
+1. Install [SwiftBar](https://swiftbar.app): `brew install --cask swiftbar` (or download it from the
+   website).
+2. Make sure `/usr/bin/python3 --version` works — if not, run `xcode-select --install`.
+3. Start SwiftBar. When it asks for a **plugin folder**, choose the `menubar` folder inside
+   Work-Tracker.
+4. In SwiftBar's menu → *Preferences* → turn on **Launch at Login**.
+
+✅ A ⏱ icon appears in the menu bar. A ⚠︎ instead means the server isn't running (see step 5).
+
+The plugin refreshes every 30 s (the `30s` in its file name) and talks to `http://localhost:47474` —
+edit `URL` at the top of `menubar/worktracker.30s.py` if you changed the port.
 
 ---
 
-## Tutorial
+## Daily use
 
-### 1. Track your time
+### Track your time
 
 Type what you're working on into the note field and press **Start** (or Enter). The clock keeps
 running even if you close the browser — the timer lives on the server, not in the tab.
@@ -97,7 +228,7 @@ While the timer runs you can keep editing the note: press **Enter** or click els
 Whatever is in the field when you press **Stop** is saved with the session. Only one timer runs at a
 time.
 
-### 2. Read your stats
+### Read your stats
 
 ![The tracker: running timer, stat tiles, this week, heatmap and day view](docs/overview.jpg)
 
@@ -112,9 +243,10 @@ time.
 12 months or any year from the dropdown; darker = more hours. Hover a day for its total, click it to
 open it in the day view.
 
-### 3. Fix and add entries (day view)
+### Fix and add entries
 
-The card at the bottom lists the sessions of the selected day (today by default).
+The card at the bottom (the *day view*) lists the sessions of the selected day — today by default;
+click a day in *This week* or the heatmap to see another one.
 
 - **Edit** loads a session into the form below. This also works for the **running** timer: leave
   *End* empty to keep it running (**Save (keeps running)**), or fill it in to stop it at that time
@@ -122,14 +254,14 @@ The card at the bottom lists the sessions of the selected day (today by default)
 - **Delete** removes a finished session.
 - **Add entry** creates a session from scratch, e.g. if you forgot to start the timer.
 
-### 4. Add a lunch break
+### Add a lunch break
 
 Expand **▸ Timeline & break** under a session, set the two times and press **Add break**. The session
 is split in two (same note), so the break doesn't count as work time anywhere — today, week, overtime
 and heatmap. The day view shows the gap as *Break 12:30 – 13:15 · 0h 45m*. This also works on the
 running timer once the break is over; the timer keeps running.
 
-### 5. Forgot to stop the timer? Use the timeline
+### Forgot to stop the timer?
 
 On macOS the server notices when you're away — **Mac asleep**, **screen locked**, or **display off /
 lid closed** — from your last keyboard or trackpad input until you're back. Under **Timeline &
@@ -150,60 +282,6 @@ running. Expand the timeline → click the grey part → **Set as end** → **Sa
 
 Away periods are only kept for the **last 3 sessions** (a handful of rows) — enough to fix
 yesterday's mistake without the database growing.
-
-### 6. Come-back reminders (macOS)
-
-When you log in, open the lid, unlock the screen or wake the display and **no timer is running**,
-you get a notification as soon as you're actually using the Mac again (background “dark wakes” with
-the lid closed are ignored). If the timer runs, nothing happens — it just keeps going through sleep.
-
-1. Click **Enable reminders** in the tracker's header once and allow notifications.
-2. Make sure macOS allows notifications for your browser: *System Settings → Notifications → (your
-   browser)*, and that Focus / Do Not Disturb is off.
-
-With the tracker open in a tab, that tab shows the notification and **clicking it jumps back to the
-tab**. With no tab open you get a plain macOS notification instead. No extra installs needed.
-
-### 7. Menu bar item (macOS)
-
-`menubar/worktracker.30s.py` is a [SwiftBar](https://swiftbar.app) plugin. The menu bar shows the
-running time (or just the icon when stopped, ⚠︎ if the server is down); the menu looks like this:
-
-```text
-⏱ 3:12
-├─ Running since 13:15 · API refactor: pagination
-├─ ■ Stop
-├─────────
-├─ Today: 7h 02m / 8h 00m
-├─ Week: 25h 59m / 40h 00m
-├─ Overtime incl. today: +18h 17m
-├─────────
-└─ Open tracker
-```
-
-When stopped, the menu offers **Start** and **Start with note…** (asks for the note).
-
-**Setup:**
-
-1. `brew install --cask swiftbar`
-2. Make sure macOS's `/usr/bin/python3` works (it comes with the Xcode Command Line Tools:
-   `xcode-select --install`).
-3. Start SwiftBar, choose the repo's `menubar` folder as plugin folder, and turn on **Launch at Login**
-   in SwiftBar's preferences.
-
-The plugin talks to `http://localhost:47474`; edit `URL` at the top of the script if you use another
-port. The `30s` in the file name is the refresh interval (the bar shows minutes).
-
-### 8. Start at login (macOS)
-
-```sh
-./autostart.sh          # install + start now
-./autostart.sh remove   # undo
-```
-
-It creates `.venv`, installs `requirements.txt` and registers a LaunchAgent
-(`~/Library/LaunchAgents/com.worktracker.plist`) that starts the server at login and restarts it if
-it stops. Output goes to `tracker.log`. Needs `python3` on your `PATH`; always uses port 47474.
 
 ---
 
@@ -272,7 +350,8 @@ flowchart LR
 
 | Method & path | Purpose |
 |---|---|
-| `GET /api/status` | Everything for the tiles: today, week, balance, running session, `last_reminder` |
+| `GET /api/status` | Everything for the tiles: today, week, balance, running session, `last_reminder`, `watcher` |
+| `POST /api/test-notification` | Settings → *Send test notification* (same path as a real reminder) |
 | `POST /api/start` · `POST /api/stop` | Start / stop the timer (optional `note`) |
 | `GET /api/days?from=…&to=…` | Seconds per day, for the heatmap |
 | `GET /api/sessions?date=…` | Sessions of a day, each with its `away` periods |
@@ -331,9 +410,9 @@ the menu bar plugin refreshes every 30 s because it only shows minutes.
 | Problem | Fix |
 |---|---|
 | “Address already in use” | Another program uses 47474 — start with `PORT=…` (and update the plugin's `URL`). |
-| No reminder notification | Click **Enable reminders**; allow notifications for your browser in System Settings; turn off Focus. Check `tracker.log` for `away (…)`, `back`, `reminder → …` lines. |
+| No reminder notification | Open **⚙ Settings** and press **Send test notification** — if that fails, follow [step 4](#step-4--turn-on-reminders-macos-recommended). If the test works but real reminders don't come, check `tracker.log` for `away (…)`, `back`, `reminder → …` lines. |
 | Reminder click opens Script Editor | That's the fallback notification (no tracker tab open). Keep a tab open with reminders enabled. |
-| Menu bar shows ⚠︎ | The server isn't running — run `./autostart.sh` or `python app.py`. |
+| Menu bar shows ⚠︎ / page doesn't load | The server isn't running — run `./autostart.sh` (macOS) or `.venv/bin/python app.py`. |
 | No grey parts on the timeline | Away periods are recorded only on macOS, only for absences ≥ 1 minute, and only kept for the last 3 sessions. |
 
 ---
