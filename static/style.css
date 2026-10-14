@@ -1,0 +1,179 @@
+:root {
+  --bg: #f6f8fa;
+  --card: #ffffff;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #1f883d;
+  --danger: #cf222e;
+  --l0: #ebedf0;
+  --l1: #9be9a8;
+  --l2: #40c463;
+  --l3: #30a14e;
+  --l4: #216e39;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8d96a0;
+    --accent: #2ea043;
+    --danger: #f85149;
+    --l0: #21262d;
+    --l1: #0e4429;
+    --l2: #006d32;
+    --l3: #26a641;
+    --l4: #39d353;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+h1 { margin: 0; font-size: 24px; }
+h2 { margin: 0 0 12px; font-size: 16px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.label { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.error { color: var(--danger); min-height: 1em; margin-top: 6px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+/* Timer */
+.timer { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.clock { font-size: 44px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.timer-actions { display: flex; gap: 8px; flex: 1; min-width: 260px; max-width: 480px; }
+.timer-actions input { flex: 1; }
+
+input, select {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  min-width: 0;
+}
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 16px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(0.95); }
+.btn.start { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 96px; }
+.btn.stop { background: var(--danger); border-color: var(--danger); color: #fff; min-width: 96px; }
+.btn.ghost { background: transparent; }
+.btn.link { border: none; background: none; padding: 2px 6px; font-weight: 400; color: var(--muted); }
+.btn.link:hover { color: var(--text); }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.stats .card { margin-bottom: 16px; }
+.value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.value .muted { font-size: 16px; font-weight: 400; }
+.positive { color: var(--accent); }
+.negative { color: var(--danger); }
+
+.bar { height: 8px; background: var(--l0); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+
+/* Week */
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.day-col { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.day-col .track {
+  width: 100%; max-width: 48px; height: 100px;
+  background: var(--l0); border-radius: 4px;
+  position: relative; overflow: hidden;
+}
+.day-col .fill { position: absolute; bottom: 0; left: 0; right: 0; background: var(--l3); }
+.day-col .goal { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--muted); }
+.day-col.today .track { outline: 2px solid var(--accent); outline-offset: 1px; }
+.day-col .name { font-size: 12px; color: var(--muted); }
+.day-col .hours { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Heatmap */
+.heatmap-scroll { overflow-x: auto; padding-bottom: 8px; margin-bottom: 4px; }
+.heatmap {
+  display: grid;
+  grid-template-rows: 16px repeat(7, 11px);
+  grid-auto-columns: 11px;
+  gap: 3px;
+  width: max-content;
+  font-size: 11px;
+  color: var(--muted);
+}
+.heatmap .month { grid-row: 1; white-space: nowrap; line-height: 16px; }
+.heatmap .weekday { grid-column: 1; width: 28px; line-height: 11px; }
+.cell { width: 11px; height: 11px; border-radius: 2px; background: var(--l0); outline: 1px solid rgba(27,31,36,.06); outline-offset: -1px; }
+.heatmap .cell { cursor: pointer; }
+.cell.pad { visibility: hidden; }
+.cell.future { opacity: .4; cursor: default; }
+.cell.selected { outline: 2px solid var(--text); outline-offset: 0; }
+.l1 { background: var(--l1); }
+.l2 { background: var(--l2); }
+.l3 { background: var(--l3); }
+.l4 { background: var(--l4); }
+.legend { display: inline-flex; align-items: center; gap: 3px; }
+.legend .cell { display: inline-block; }
+
+.tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: #24292f;
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  z-index: 10;
+}
+
+/* Sessions */
+.sessions { list-style: none; margin: 0 0 12px; padding: 0; }
+.sessions li {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.sessions li:last-child { border-bottom: none; }
+.sessions .times { font-variant-numeric: tabular-nums; min-width: 120px; }
+.sessions .dur { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 64px; }
+.sessions .note { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions .empty { color: var(--muted); }
+
+.session-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.session-form label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 2px; }
+.session-form label.grow { flex: 1; min-width: 160px; }
+
+@media (max-width: 600px) {
+  .clock { font-size: 36px; }
+  .timer-actions { min-width: 100%; }
+  .sessions li { flex-wrap: wrap; gap: 4px 12px; }
+  .sessions .note { flex-basis: 100%; order: 3; }
+}

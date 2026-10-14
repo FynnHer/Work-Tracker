@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Work Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Work Tracker</h1>
+      <span id="today-label" class="muted"></span>
+    </header>
+
+    <!-- Timer -->
+    <section class="card timer">
+      <div>
+        <div class="label">Current session</div>
+        <div id="clock" class="clock">00:00:00</div>
+        <div id="since" class="muted small">Timer stopped</div>
+      </div>
+      <div class="timer-actions">
+        <input id="note" type="text" placeholder="What are you working on? (optional)" maxlength="200">
+        <button id="toggle" class="btn start">Start</button>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+      <div class="card stat">
+        <div class="label">Today</div>
+        <div class="value"><span id="today-worked">0h 00m</span> <span class="muted">/ <span id="today-target">8h</span></span></div>
+        <div class="bar"><div id="today-bar"></div></div>
+        <div class="muted small" id="today-remaining"></div>
+      </div>
+      <div class="card stat">
+        <div class="label">This week</div>
+        <div class="value"><span id="week-worked">0h 00m</span> <span class="muted">/ 40h</span></div>
+        <div class="bar"><div id="week-bar"></div></div>
+        <div class="muted small" id="week-remaining"></div>
+      </div>
+      <div class="card stat">
+        <div class="label">Overtime balance</div>
+        <div class="value" id="balance">±0h 00m</div>
+        <div class="muted small">All days before today vs. 8h per workday</div>
+      </div>
+    </section>
+
+    <!-- Week -->
+    <section class="card">
+      <h2>This week</h2>
+      <div id="week" class="week"></div>
+    </section>
+
+    <!-- Heatmap -->
+    <section class="card">
+      <div class="row-between">
+        <h2 id="heatmap-title">Activity</h2>
+        <select id="year-select"></select>
+      </div>
+      <div class="heatmap-scroll">
+        <div id="heatmap" class="heatmap"></div>
+      </div>
+      <div class="row-between small muted">
+        <span id="heatmap-summary"></span>
+        <span class="legend">Less
+          <i class="cell l0"></i><i class="cell l1"></i><i class="cell l2"></i><i class="cell l3"></i><i class="cell l4"></i>
+          More</span>
+      </div>
+    </section>
+
+    <!-- Day detail -->
+    <section class="card">
+      <h2 id="day-title">Day</h2>
+      <ul id="day-sessions" class="sessions"></ul>
+      <form id="session-form" class="session-form">
+        <label>Start <input type="datetime-local" id="f-start" required></label>
+        <label>End <input type="datetime-local" id="f-end" required></label>
+        <label class="grow">Note <input type="text" id="f-note" maxlength="200"></label>
+        <button type="submit" class="btn" id="f-submit">Add entry</button>
+        <button type="button" class="btn ghost" id="f-cancel" hidden>Cancel</button>
+      </form>
+      <div id="form-error" class="error small"></div>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
