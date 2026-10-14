@@ -116,10 +116,14 @@ function renderStatus() {
     : `Done! ${fmtDur(-weekLeft)} overtime this week`;
 
   // Balance
-  const bal = status.balance_seconds;
-  const balEl = $("balance");
-  balEl.textContent = (bal > 0 ? "+" : bal < 0 ? "−" : "±") + fmtDur(Math.abs(bal));
-  balEl.className = "value " + (bal > 0 ? "positive" : bal < 0 ? "negative" : "");
+  showBalance($("balance"), status.balance_seconds);
+  showBalance($("balance-today"), status.balance_seconds + todaySec - todayTarget);
+}
+
+function showBalance(el, bal) {
+  bal = Math.trunc(bal);
+  el.textContent = (bal > 0 ? "+" : bal < 0 ? "−" : "±") + fmtDur(Math.abs(bal));
+  el.className = "value " + (bal > 0 ? "positive" : bal < 0 ? "negative" : "");
 }
 
 function renderWeek() {
