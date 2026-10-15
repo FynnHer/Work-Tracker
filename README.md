@@ -309,6 +309,7 @@ yesterday's mistake without the database growing.
 | Port | `PORT` environment variable | `47474` |
 | Database file | `TRACKER_DB` environment variable | `tracker.db` next to `app.py` |
 | Come-back watcher (reminders + away tracking) | `WAKE_PROMPT=0` disables it | on (macOS only) |
+| Phone snapshot: a read-only `worktracker.html` (stats incl. overtime, this week, heatmap, every day with its sessions) rewritten after every change — point it at a OneDrive/iCloud folder and open it in the phone's Files app | `SNAPSHOT_DIR` environment variable (`SNAPSHOT_DIR=~/folder ./autostart.sh`) | off |
 
 ---
 

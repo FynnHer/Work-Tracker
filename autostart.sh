@@ -2,6 +2,7 @@
 # Start Work Tracker at login (macOS LaunchAgent).
 #   ./autostart.sh          install + start now
 #   ./autostart.sh remove   uninstall
+#   SNAPSHOT_DIR=~/path ./autostart.sh   also write worktracker.html there (e.g. OneDrive, for the phone)
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 LABEL=com.worktracker
@@ -17,6 +18,9 @@ fi
 [ -x "$DIR/.venv/bin/python" ] || python3 -m venv "$DIR/.venv"
 "$DIR/.venv/bin/pip" install -q -r "$DIR/requirements.txt"
 
+ENV=""
+[ -n "$SNAPSHOT_DIR" ] && ENV="<key>EnvironmentVariables</key><dict><key>SNAPSHOT_DIR</key><string>$SNAPSHOT_DIR</string></dict>"
+
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -29,6 +33,7 @@ cat > "$PLIST" <<EOF
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardErrorPath</key><string>$DIR/tracker.log</string>
+  $ENV
 </dict>
 </plist>
 EOF
