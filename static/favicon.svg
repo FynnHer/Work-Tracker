@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .accent { fill: #1f883d; }
+    .hand { stroke: #1f883d; }
+    .face { fill: #fff; }
+    @media (prefers-color-scheme: dark) {
+      .accent { fill: #2ea043; }
+      .hand { stroke: #2ea043; }
+      .face { fill: #0d1117; }
+    }
+  </style>
+  <rect class="accent" x="13" y="1.5" width="6" height="3.5" rx="1.2"/>
+  <rect class="accent" x="24.2" y="5.6" width="4.5" height="3" rx="1" transform="rotate(45 26.45 7.1)"/>
+  <circle class="accent" cx="16" cy="18" r="12"/>
+  <circle class="face" cx="16" cy="18" r="9"/>
+  <path class="hand" d="M16 18V11.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+  <path class="hand" d="M16 18l4.2 2.6" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+  <circle class="accent" cx="16" cy="18" r="1.6"/>
+</svg>
