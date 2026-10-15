@@ -2,6 +2,7 @@
 
 Run:  python app.py   then open http://localhost:47474
 """
+import html
 import logging
 import os
 import sqlite3
@@ -10,6 +11,7 @@ import sys
 import threading
 import time as clock
 from datetime import date, datetime, time, timedelta
+from string import Template
 
 from flask import Flask, g, jsonify, request
 
@@ -429,6 +431,107 @@ def add_break(sid):
     )
     db.commit()
     return "", 204
+
+
+# ---------------------------------------------------------------- phone snapshot
+
+SNAPSHOT_DIR = os.environ.get("SNAPSHOT_DIR")  # e.g. a OneDrive/iCloud folder; unset = no snapshot
+
+
+def fmt_dur(sec: int) -> str:
+    sign = "−" if sec < 0 else ""
+    sec = abs(sec)
+    return f"{sign}{sec // 3600}h {sec % 3600 // 60:02d}m"
+
+
+def write_snapshot():
+    """Fill snapshot.html with the current stats and days; readable in the phone's file viewer (no JS)."""
+    st = status().get_json()
+    today = date.today()
+    goals = goal_table()
+
+    def signed(sec):
+        return ("+" if sec >= 0 else "") + fmt_dur(sec)
+
+    def tone(sec):
+        return "pos" if sec >= 0 else "neg"
+
+    def pct(part, whole):
+        return min(100, round(100 * part / whole)) if whole else 0
+
+    def level(sec):
+        return 0 if sec <= 0 else 1 if sec < 2 * 3600 else 2 if sec < 5 * 3600 else 3 if sec < 8 * 3600 else 4
+
+    # Heatmap: 26 weeks, Monday-first columns.
+    first = today - timedelta(days=today.weekday() + 25 * 7)
+    totals = daily_totals(first, today)
+    heat = "".join(
+        f'<span class="l{level(totals.get(d.isoformat(), 0))}"></span>' if d <= today else '<span class="none"></span>'
+        for d in (first + timedelta(days=i) for i in range(26 * 7))
+    )
+
+    week_rows = "".join(
+        f'<span class="{"today" if d["date"] == st["today"] else ""}">{parse_day(d["date"]):%a}</span>'
+        f'<div class="bar"><div style="width: {pct(d["seconds"], d["target"] or 8 * 3600)}%"></div></div>'
+        f'<span class="small">{fmt_dur(d["seconds"])} <span class="muted">/ {fmt_dur(d["target"])}</span></span>'
+        for d in st["week_days"]
+    )
+
+    # Days: every day with work or a target, newest first, grouped by month (last 12 months).
+    first_row = get_db().execute("SELECT MIN(start_time) FROM sessions").fetchone()[0]
+    since = max(today - timedelta(days=365), parse(first_row).date() if first_row else today)  # no "missed" days before you started
+    totals = daily_totals(since, today)
+    sessions: dict = {}
+    for r in get_db().execute(
+        "SELECT * FROM sessions WHERE end_time IS NOT NULL AND start_time >= ? ORDER BY start_time",
+        (fmt(datetime.combine(since, time.min)),),
+    ):
+        sessions.setdefault(r["start_time"][:10], []).append(
+            f'<li>{r["start_time"][11:16]}–{r["end_time"][11:16]} · {fmt_dur(session_dict(r)["seconds"])}'
+            + (f'<span class="note">{html.escape(r["note"])}</span>' if r["note"] else "") + "</li>"
+        )
+    months: dict = {}
+    for i in range((today - since).days + 1):
+        d = today - timedelta(days=i)
+        worked, target = totals.get(d.isoformat(), 0), day_target(d, goals)
+        if worked or target:
+            months.setdefault(f"{d:%B %Y}", []).append(
+                f'<details class="day"><summary><span>{d:%a %d.%m.}</span><span>{fmt_dur(worked)}</span>'
+                f'<span class="delta {tone(worked - target)}">{signed(worked - target)}</span></summary>'
+                f'<ul class="sessions">{"".join(sessions.get(d.isoformat(), [])) or "<li class=muted>No sessions</li>"}</ul>'
+                "</details>"
+            )
+    month_html = "".join(
+        f'<details class="month"{" open" if n == 0 else ""}><summary>{name}</summary>{"".join(days)}</details>'
+        for n, (name, days) in enumerate(months.items())
+    )
+
+    balance_today = st["balance_seconds"] + st["today_seconds"] - st["daily_target"]
+    with open(os.path.join(BASE_DIR, "snapshot.html"), encoding="utf-8") as f:
+        page = Template(f.read()).substitute(
+            updated=f"{datetime.now():%a %d.%m. %H:%M}",
+            today=fmt_dur(st["today_seconds"]), today_target=fmt_dur(st["daily_target"]),
+            today_pct=pct(st["today_seconds"], st["daily_target"]),
+            week=fmt_dur(st["week_seconds"]), week_target=fmt_dur(st["weekly_target"]),
+            week_pct=pct(st["week_seconds"], st["weekly_target"]),
+            balance=signed(st["balance_seconds"]), balance_class=tone(st["balance_seconds"]),
+            balance_today=signed(balance_today), balance_today_class=tone(balance_today),
+            week_rows=week_rows, heat=heat, months=month_html or '<p class="muted">No days yet.</p>',
+        )
+    tmp = os.path.join(SNAPSHOT_DIR, ".worktracker.html.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(page)
+    os.replace(tmp, os.path.join(SNAPSHOT_DIR, "worktracker.html"))  # sync never sees a half-written file
+
+
+@app.after_request
+def snapshot_after_change(response):
+    if SNAPSHOT_DIR and request.method != "GET" and response.status_code < 400:
+        try:
+            write_snapshot()
+        except Exception as e:  # never fail the user's action because the sync folder is unavailable
+            app.logger.warning("snapshot failed: %s", e)
+    return response
 
 
 # ---------------------------------------------------------------- wake reminder (macOS)
